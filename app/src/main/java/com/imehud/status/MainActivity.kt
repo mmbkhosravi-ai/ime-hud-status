@@ -182,7 +182,8 @@ class MainActivity : AppCompatActivity() {
         uiJob = scope.launch {
             while (true) {
                 try {
-                    val data = PriceFetcher.fetch()
+                    val result = PriceFetcher.fetchRotation()
+                    val data = result?.items?.firstOrNull()
                     if (data != null) {
                         priceText.text = formatPrice(data.price)
                         val pct = data.changePct

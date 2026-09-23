@@ -8,19 +8,10 @@ import android.graphics.Typeface
 
 object NotifBuilder {
 
-    /**
-     * ساخت Bitmap از ۳ رقم اول قیمت — بسیار درشت و پر.
-     *
-     * تکنیک‌ها برای حداکثر خوانایی:
-     * - Canvas بزرگ 192x192 (سیستم خودش به اندازه small icon کوچک می‌کند)
-     * - متن را ۱۰۰٪ عرض پر می‌کنیم (بدون padding)
-     * - Fake Bold + Stroke برای ضخامت
-     * - انتخاب تک‌رقمی به جای ۳ رقم در صورت نیاز برای درشتی بیشتر
-     */
+    // Canvas 256px, 3 digits full, stroke 8%, full width
     fun makePriceBitmap(price: Double, color: Int = Color.WHITE): Bitmap {
         val digits = firstDigits(price, 3)
-
-        val size = 192
+        val size = 256
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.TRANSPARENT)
@@ -33,32 +24,21 @@ object NotifBuilder {
             style = Paint.Style.FILL_AND_STROKE
         }
 
-        // ★ شروع با اندازه بزرگ
-        paint.textSize = size.toFloat() * 1.8f
-
-        // تنظیم عرض — متن کامل پر کند (۹۵٪ عرض)
-        val maxW = size.toFloat() * 0.95f
+        paint.textSize = size.toFloat() * 1.6f
+        val maxW = size.toFloat() * 1.0f
         val w = paint.measureText(digits)
-        if (w > 0f) {
-            paint.textSize *= (maxW / w)
-        }
+        if (w > 0f) paint.textSize *= (maxW / w)
 
-        // تنظیم ارتفاع — با احتساب stroke
         var fm = paint.fontMetrics
         val textHeight = fm.descent - fm.ascent
-        val maxH = size.toFloat() * 0.95f
-        if (textHeight > maxH) {
-            paint.textSize *= (maxH / textHeight)
-        }
+        val maxH = size.toFloat() * 1.0f
+        if (textHeight > maxH) paint.textSize *= (maxH / textHeight)
 
-        // ★ ضخامت Stroke ~ 8% اندازه فونت
         paint.strokeWidth = paint.textSize * 0.08f
 
-        // رسم در مرکز دقیق
         fm = paint.fontMetrics
         val centerY = size / 2f - (fm.ascent + fm.descent) / 2f
         canvas.drawText(digits, size / 2f, centerY, paint)
-
         return bmp
     }
 

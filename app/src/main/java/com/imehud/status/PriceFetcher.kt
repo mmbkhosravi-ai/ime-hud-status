@@ -4,6 +4,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -15,29 +16,45 @@ data class PriceData(
     val alias: String
 )
 
+data class RotationResult(
+    val items: List<PriceData>,
+    val marketOpen: Boolean
+)
+
 object PriceFetcher {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
         .readTimeout(3, TimeUnit.SECONDS)
         .build()
 
-    private const val URL = "http://127.0.0.1:5056/api/notif/data"
+    private const val URL = "http://127.0.0.1:5056/api/notif/rotation"
 
-    suspend fun fetch(): PriceData? = withContext(Dispatchers.IO) {
+    suspend fun fetchRotation(): RotationResult? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder().url(URL).build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null
                 val body = resp.body?.string() ?: return@withContext null
                 val j = JSONObject(body)
-                return@withContext PriceData(
-                    price = j.optDouble("price", 0.0),
-                    changePct = if (j.has("change_pct") && !j.isNull("change_pct"))
-                        j.getDouble("change_pct") else null,
-                    bubble = if (j.has("bubble") && !j.isNull("bubble"))
-                        j.getDouble("bubble") else null,
-                    marketOpen = j.optBoolean("market_open", false),
-                    alias = j.optString("alias", "IME-HUD")
+                val arr: JSONArray = j.optJSONArray("items") ?: JSONArray()
+                val items = ArrayList<PriceData>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    items.add(
+                        PriceData(
+                            price = o.optDouble("price", 0.0),
+                            changePct = if (o.has("change_pct") && !o.isNull("change_pct"))
+                                o.getDouble("change_pct") else null,
+                            bubble = if (o.has("bubble") && !o.isNull("bubble"))
+                                o.getDouble("bubble") else null,
+                            marketOpen = j.optBoolean("market_open", false),
+                            alias = o.optString("alias", "IME-HUD")
+                        )
+                    )
+                }
+                return@withContext RotationResult(
+                    items = items,
+                    marketOpen = j.optBoolean("market_open", false)
                 )
             }
         } catch (e: Exception) {

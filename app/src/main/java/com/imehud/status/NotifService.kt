@@ -24,10 +24,17 @@ class NotifService : Service() {
         const val CHANNEL_ID = "imehud-price"
         const val NOTIF_ID = 8888
         const val INTERVAL_MS = 5000L
+        const val RETRY_MS = 10000L
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
     private var job: Job? = null
+
+    // ★ state چرخش
+    private var rotationItems: List<PriceData> = emptyList()
+    private var currentIndex = 0
+    private var lastMarketOpen = false
+    private var consecutiveFailures = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -35,7 +42,7 @@ class NotifService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIF_ID, buildNotif("----", "در حال اتصال...", Color.GRAY))
+        startForeground(NOTIF_ID, buildNotif("---", "در حال اتصال...", Color.GRAY))
         startLoop()
         return START_STICKY
     }
@@ -43,27 +50,59 @@ class NotifService : Service() {
     private fun startLoop() {
         job?.cancel()
         job = scope.launch {
+            // اول یک بار لیست نمادها را بگیر
+            refreshRotation()
+
             while (true) {
                 try {
-                    val data = PriceFetcher.fetch()
-                    if (data != null) {
-                        val digits = first3(data.price)
-                        val color = if ((data.changePct ?: 0.0) >= 0)
-                            Color.rgb(34, 197, 94) else Color.rgb(220, 38, 38)
-
-                        val content = buildContent(data)
-                        val notif = buildNotif(digits, content, color, data.price)
-                        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-                        nm.notify(NOTIF_ID, notif)
-                        Log.d(TAG, "updated: $digits | $content")
-                    } else {
-                        Log.w(TAG, "fetch failed")
+                    // اگر لیست خالی است یا از آخر رسیدیم → دوباره بگیر
+                    if (rotationItems.isEmpty() || currentIndex >= rotationItems.size) {
+                        refreshRotation()
+                        currentIndex = 0
                     }
+
+                    if (rotationItems.isEmpty()) {
+                        // هیچ نمادی نداریم → نمایش خطا
+                        showNotif("---", "⚠️ نمادی در پورتفو نیست", Color.GRAY, 0.0)
+                        consecutiveFailures++
+                        delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
+                        continue
+                    }
+
+                    val data = rotationItems[currentIndex]
+                    val digits = first3(data.price)
+                    val color = if ((data.changePct ?: 0.0) >= 0)
+                        Color.rgb(34, 197, 94) else Color.rgb(220, 38, 38)
+
+                    val content = buildContent(data)
+                    showNotif(digits, content, color, data.price)
+                    Log.d(TAG, "[$currentIndex/${rotationItems.size}] $digits | $content")
+
+                    consecutiveFailures = 0
+                    currentIndex++
+
+                    delay(INTERVAL_MS)
                 } catch (e: Exception) {
                     Log.e(TAG, "loop error", e)
+                    consecutiveFailures++
+                    delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
                 }
-                delay(INTERVAL_MS)
             }
+        }
+    }
+
+    private suspend fun refreshRotation() {
+        try {
+            val result = PriceFetcher.fetchRotation()
+            if (result != null && result.items.isNotEmpty()) {
+                rotationItems = result.items
+                lastMarketOpen = result.marketOpen
+                Log.d(TAG, "rotation refreshed: ${rotationItems.size} items")
+            } else {
+                Log.w(TAG, "rotation fetch failed or empty")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "refresh error", e)
         }
     }
 
@@ -78,12 +117,7 @@ class NotifService : Service() {
         return sb.toString()
     }
 
-    private fun buildNotif(
-        digits: String,
-        content: String,
-        color: Int,
-        price: Double = 0.0
-    ): Notification {
+    private fun showNotif(digits: String, content: String, color: Int, price: Double) {
         val bmp = NotifBuilder.makePriceBitmap(price, color)
         val smallIcon = Icon.createWithBitmap(bmp)
 
@@ -92,11 +126,30 @@ class NotifService : Service() {
         else
             Notification.Builder(this)
 
-        return builder
+        val notif = builder
             .setSmallIcon(smallIcon)
             .setContentTitle("IME-HUD")
             .setContentText(content)
             .setStyle(Notification.BigTextStyle().bigText(content))
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .build()
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(NOTIF_ID, notif)
+    }
+
+    private fun buildNotif(digits: String, content: String, color: Int): Notification {
+        val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+            Notification.Builder(this, CHANNEL_ID)
+        else
+            Notification.Builder(this)
+
+        return builder
+            .setSmallIcon(android.R.drawable.ic_menu_info_details)
+            .setContentTitle("IME-HUD")
+            .setContentText(content)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setShowWhen(false)

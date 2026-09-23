@@ -5,6 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,21 +25,23 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew || true
-
       - name: Build Debug APK
         run: gradle assembleDebug --no-daemon --stacktrace
 
-      - name: Rename APK
+      - name: Prepare APK
         run: |
           mkdir -p artifacts
           cp app/build/outputs/apk/debug/app-debug.apk artifacts/IME-HUD-Status.apk
           ls -lah artifacts/
 
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: IME-HUD-Status-APK
-          path: artifacts/IME-HUD-Status.apk
-          retention-days: 30
+          tag_name: v1.${{ github.run_number }}
+          name: IME-HUD Status v1.${{ github.run_number }}
+          body: |
+            Build خودکار از commit ${{ github.sha }}
+            تاریخ: ${{ github.event.head_commit.timestamp }}
+          files: artifacts/IME-HUD-Status.apk
+          draft: false
+          prerelease: false

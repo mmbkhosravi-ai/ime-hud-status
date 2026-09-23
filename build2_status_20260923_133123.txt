@@ -1,0 +1,20 @@
+═══════════════════════════════════════════════════════════════
+  وضعیت Build دوم — 13:31:23
+═══════════════════════════════════════════════════════════════
+
+in_progress		ci: use release instead of artifact (Iran filtering)	Build APK	main	push	35846272996	44s	2026-09-23T10:00:39Z
+completed	success	Initial: IME-HUD Status app — Status Bar price display	Build APK	main	push	35845619656	1m54s	2026-09-23T09:53:51Z
+
+RUN_ID: 35846272996
+
+
+* main Build APK · 35846272996
+Triggered via push less than a minute ago
+
+JOBS
+* build (ID 107133094847)
+
+For more information about the job, try: gh run view --job=107133094847
+View this run on GitHub: https://github.com/mmbkhosravi-ai/ime-hud-status/actions/runs/35846272996
+
+═══════════════════════════════════════════════════════════════

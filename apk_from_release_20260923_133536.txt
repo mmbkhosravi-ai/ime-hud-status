@@ -1,0 +1,21 @@
+═══════════════════════════════════════════════════════════════
+  دانلود از Release — 13:35:36
+═══════════════════════════════════════════════════════════════
+
+─── روش ۱: gh release download ───
+
+─── فایل‌های دانلود شده ───
+/data/data/com.termux/files/home/imehud_apk/IME-HUD-Status.apk
+
+
+─── اندازه ───
+-rw-------. 1 u0_a480 u0_a480 3.6M Sep 23 13:35 /data/data/com.termux/files/home/imehud_apk/IME-HUD-Status.apk
+
+─── بررسی APK ───
+/data/data/com.termux/files/home/imehud_apk/IME-HUD-Status.apk: Android package (APK), with gradle app-metadata.properties, with APK Signing Block
+
+─── کپی به Download ───
+✅ کپی شد به /sdcard/Download/IME-HUD-Status.apk
+-rw-rw----. 1 u0_a273 media_rw 3.6M Sep 23 13:35 /sdcard/Download/IME-HUD-Status.apk
+
+═══════════════════════════════════════════════════════════════

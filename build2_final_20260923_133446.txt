@@ -1,0 +1,44 @@
+═══════════════════════════════════════════════════════════════
+  نتیجه Build دوم — 13:34:46
+═══════════════════════════════════════════════════════════════
+
+
+✓ main Build APK · 35846272996
+Triggered via push about 4 minutes ago
+
+JOBS
+✓ build in 1m47s (ID 107133094847)
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@v4, actions/setup-java@v4, gradle/actions/setup-gradle@v3, softprops/action-gh-release@v2. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+build: .github#2
+
+! Failed to save cache entry with path '/home/runner/.gradle/caches,/home/runner/.gradle/notifications,/home/runner/.gradle/.setup-gradle' and key: gradle-home-v1|Linux|build[620c74083efa5b88ef904c2356f72d31]-037b524d5321585db26010b37f7a01ccf32dfc84: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0s6OzagAAAACxgf9U3W/kQ6Dj+x67lxadUEhYMzFFREdFMDIwNgBFZGdl
+build: .github#32
+
+! Failed to save cache entry with path '/home/runner/.gradle/caches/transforms-4/*/
+/home/runner/.gradle/caches/*/transforms/*/' and key: gradle-transforms-v1-27755f4ed10828cd5e52007afd7a6c67: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0sqOzagAAAABGYWMam8+uQpDlqJ2u6TLqUEhYMzFFREdFMDUwNgBFZGdl
+build: .github#28
+
+! Failed to save cache entry with path '/home/runner/.gradle/caches/modules-*/files-*/*/*/*/*' and key: gradle-dependencies-v1-fe260265de7f0b2ad4774a71dd16dc1d: Error: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0saOzagAAAAB+z6PPZxWGSKNo92IKVJexUEhYMzFFREdFMDIxNwBFZGdl
+build: .github#27
+
+─── وضعیت Release ───
+IME-HUD Status v1.2	Latest	v1.2	2026-09-23T10:02:23Z
+
+─── جزئیات آخرین Release ───
+title:	IME-HUD Status v1.2
+tag:	v1.2
+draft:	false
+prerelease:	false
+immutable:	false
+author:	github-actions[bot]
+created:	2026-09-23T09:59:55Z
+published:	2026-09-23T10:02:23Z
+url:	https://github.com/mmbkhosravi-ai/ime-hud-status/releases/tag/v1.2
+asset:	IME-HUD-Status.apk
+--
+Build خودکار از commit 037b524d5321585db26010b37f7a01ccf32dfc84
+تاریخ: 2026-09-23T13:29:55+03:30
+
+═══════════════════════════════════════════════════════════════

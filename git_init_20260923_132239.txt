@@ -1,0 +1,20 @@
+کاربر: mmbkhosravi-ai
+پروژه: /data/data/com.termux/files/home/ime-hud-status
+
+2f32e2c Initial: IME-HUD Status app — Status Bar price display
+
+.github/workflows/build.yml
+.gitignore
+README.md
+app/build.gradle.kts
+app/src/main/AndroidManifest.xml
+app/src/main/java/com/imehud/status/BootReceiver.kt
+app/src/main/java/com/imehud/status/MainActivity.kt
+app/src/main/java/com/imehud/status/NotifBuilder.kt
+app/src/main/java/com/imehud/status/NotifService.kt
+app/src/main/java/com/imehud/status/PriceFetcher.kt
+app/src/main/res/values/strings.xml
+app/src/main/res/values/themes.xml
+build.gradle.kts
+gradle.properties
+settings.gradle.kts

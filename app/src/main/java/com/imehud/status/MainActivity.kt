@@ -6,8 +6,6 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.widget.Button
@@ -31,10 +29,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var marketText: TextView
     private lateinit var startBtn: Button
     private lateinit var stopBtn: Button
+    private lateinit var webBtn: Button
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private var uiJob: Job? = null
-    private var isRunning = false
+
+    private val webUrl = "http://127.0.0.1:5056/"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -45,7 +45,6 @@ class MainActivity : AppCompatActivity() {
             setBackgroundColor(Color.parseColor("#0f1419"))
         }
 
-        // ─── عنوان ───
         val title = TextView(this).apply {
             text = "IME-HUD Status"
             textSize = 22f
@@ -61,7 +60,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 8, 0, 32)
         }
 
-        // ─── کارت قیمت ───
         val card = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(32, 40, 32, 40)
@@ -107,7 +105,6 @@ class MainActivity : AppCompatActivity() {
         card.addView(bubbleText)
         card.addView(marketText)
 
-        // ─── وضعیت اپ ───
         statusText = TextView(this).apply {
             text = "وضعیت: متوقف"
             textSize = 14f
@@ -116,7 +113,6 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 32, 0, 16)
         }
 
-        // ─── دکمه‌ها ───
         startBtn = Button(this).apply {
             text = "▶  شروع سرویس"
             textSize = 16f
@@ -136,14 +132,22 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { stopMyService() }
         }
 
-        val space1 = View(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 24
-            )
+        webBtn = Button(this).apply {
+            text = "🌐  باز کردن رابط وب (کارت‌ها)"
+            textSize = 14f
+            setBackgroundColor(Color.parseColor("#2563eb"))
+            setTextColor(Color.WHITE)
+            setOnClickListener { openWeb() }
         }
+
         val space2 = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 12
+            )
+        }
+        val space3 = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 24
             )
         }
 
@@ -154,12 +158,23 @@ class MainActivity : AppCompatActivity() {
         root.addView(startBtn)
         root.addView(space2)
         root.addView(stopBtn)
-        root.addView(space1)
+        root.addView(space3)
+        root.addView(webBtn)
 
         setContentView(root)
 
         requestNotifPermission()
         startUiRefresh()
+    }
+
+    private fun openWeb() {
+        try {
+            val i = Intent(Intent.ACTION_VIEW)
+            i.data = android.net.Uri.parse(webUrl)
+            startActivity(i)
+        } catch (e: Exception) {
+            marketText.text = "خطا در باز کردن مرورگر"
+        }
     }
 
     private fun startUiRefresh() {
@@ -179,15 +194,10 @@ class MainActivity : AppCompatActivity() {
                             )
                         } else {
                             changeText.text = "---"
-                            changeText.setTextColor(Color.parseColor("#888888"))
                         }
                         val bub = data.bubble
                         if (bub != null) {
                             bubbleText.text = String.format("حباب %+.2f%%", bub)
-                            bubbleText.setTextColor(
-                                if (bub >= 0) Color.parseColor("#d4a017")
-                                else Color.parseColor("#dc2626")
-                            )
                         } else {
                             bubbleText.text = "حباب ---"
                         }
@@ -197,11 +207,10 @@ class MainActivity : AppCompatActivity() {
                             else Color.parseColor("#dc2626")
                         )
                     } else {
-                        marketText.text = "⚠️ اتصال به سرور برقرار نیست"
+                        marketText.text = "⚠️ اتصال برقرار نیست"
                         marketText.setTextColor(Color.parseColor("#dc2626"))
                     }
                 } catch (e: Exception) {
-                    // ignore
                 }
                 delay(3000)
             }
@@ -234,14 +243,12 @@ class MainActivity : AppCompatActivity() {
         }
         statusText.text = "وضعیت: در حال اجرا ✓"
         statusText.setTextColor(Color.parseColor("#22c55e"))
-        isRunning = true
     }
 
     private fun stopMyService() {
         stopService(Intent(this, NotifService::class.java))
         statusText.text = "وضعیت: متوقف"
         statusText.setTextColor(Color.parseColor("#7a8ea5"))
-        isRunning = false
     }
 
     override fun onDestroy() {

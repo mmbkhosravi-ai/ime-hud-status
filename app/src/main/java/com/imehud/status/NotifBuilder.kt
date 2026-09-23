@@ -4,23 +4,23 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Rect
 import android.graphics.Typeface
 
 object NotifBuilder {
 
     /**
-     * ساخت Bitmap از ۳ رقم اول قیمت برای small icon در استاتوس بار.
+     * ساخت Bitmap از ۳ رقم اول قیمت — بسیار درشت و پر.
      *
-     * نکته: Small icon در استاتوس بار حدود 24dp قطر دارد (72x72 px در xxhdpi).
-     * برای دیده‌شدن بهتر عدد، از canvas بزرگ‌تر (144x144) استفاده می‌کنیم و
-     * تمام فضا را با متن پر می‌کنیم (padding صفر).
+     * تکنیک‌ها برای حداکثر خوانایی:
+     * - Canvas بزرگ 192x192 (سیستم خودش به اندازه small icon کوچک می‌کند)
+     * - متن را ۱۰۰٪ عرض پر می‌کنیم (بدون padding)
+     * - Fake Bold + Stroke برای ضخامت
+     * - انتخاب تک‌رقمی به جای ۳ رقم در صورت نیاز برای درشتی بیشتر
      */
     fun makePriceBitmap(price: Double, color: Int = Color.WHITE): Bitmap {
         val digits = firstDigits(price, 3)
 
-        // Canvas بزرگ‌تر — سیستم خودش کوچک می‌کند
-        val size = 144
+        val size = 192
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.TRANSPARENT)
@@ -29,29 +29,33 @@ object NotifBuilder {
             this.color = color
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            isFakeBoldText = true
+            style = Paint.Style.FILL_AND_STROKE
         }
 
-        // ★ محاسبه دقیق اندازه فونت که متن کامل پر کند
-        // اندازه شروع بزرگتر
-        paint.textSize = size.toFloat() * 1.5f
+        // ★ شروع با اندازه بزرگ
+        paint.textSize = size.toFloat() * 1.8f
 
-        // تنظیم عرض
-        val maxW = size.toFloat() * 1.0f
+        // تنظیم عرض — متن کامل پر کند (۹۵٪ عرض)
+        val maxW = size.toFloat() * 0.95f
         val w = paint.measureText(digits)
         if (w > 0f) {
             paint.textSize *= (maxW / w)
         }
 
-        // تنظیم ارتفاع (اگر هنوز بلندتر از canvas است)
-        val metrics = paint.fontMetrics
-        val textHeight = metrics.descent - metrics.ascent
-        val maxH = size.toFloat() * 1.0f
+        // تنظیم ارتفاع — با احتساب stroke
+        var fm = paint.fontMetrics
+        val textHeight = fm.descent - fm.ascent
+        val maxH = size.toFloat() * 0.95f
         if (textHeight > maxH) {
             paint.textSize *= (maxH / textHeight)
         }
 
+        // ★ ضخامت Stroke ~ 8% اندازه فونت
+        paint.strokeWidth = paint.textSize * 0.08f
+
         // رسم در مرکز دقیق
-        val fm = paint.fontMetrics
+        fm = paint.fontMetrics
         val centerY = size / 2f - (fm.ascent + fm.descent) / 2f
         canvas.drawText(digits, size / 2f, centerY, paint)
 

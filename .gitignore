@@ -17,3 +17,7 @@ bin/
 gen/
 out/
 release/
+
+# گزارش‌های موقت
+*.txt
+backups/

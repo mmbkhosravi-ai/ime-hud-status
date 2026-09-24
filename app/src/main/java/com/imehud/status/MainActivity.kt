@@ -12,6 +12,12 @@ import android.view.Gravity
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.RadioGroup
+import android.widget.RadioButton
+import android.widget.SeekBar
+import android.widget.Switch
+import android.widget.ScrollView
+import android.app.AlertDialog
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -143,6 +149,14 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { toggleOverlay() }
         }
 
+        val overlaySettingsBtn = Button(this).apply {
+            text = "⚙  تنظیمات Overlay"
+            textSize = 13f
+            setBackgroundColor(Color.parseColor("#2563eb"))
+            setTextColor(Color.WHITE)
+            setOnClickListener { showOverlaySettings() }
+        }
+
         webBtn = Button(this).apply {
             text = "🌐  باز کردن رابط وب (کارت‌ها)"
             textSize = 14f
@@ -161,6 +175,11 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, 24
             )
         }
+        val space5 = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 8
+            )
+        }
         val space4 = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 12
@@ -176,6 +195,8 @@ class MainActivity : AppCompatActivity() {
         root.addView(stopBtn)
         root.addView(space4)
         root.addView(overlayBtn)
+        root.addView(space5)
+        root.addView(overlaySettingsBtn)
         root.addView(space3)
         root.addView(webBtn)
 
@@ -215,6 +236,137 @@ class MainActivity : AppCompatActivity() {
         overlayBtn.text = "■  توقف Overlay"
         statusText.text = "Overlay فعال ✓ — عدد روی استاتوس بار"
         statusText.setTextColor(Color.parseColor("#22c55e"))
+    }
+
+    private fun showOverlaySettings() {
+        val scroll = ScrollView(this)
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(48, 32, 48, 32)
+        }
+
+        val current = OverlayPrefs.load(this)
+
+        // ─── موقعیت ───
+        val lblPos = TextView(this).apply {
+            text = "📍 موقعیت افقی"
+            textSize = 14f
+            setTextColor(Color.parseColor("#d4a017"))
+            setPadding(0, 16, 0, 8)
+        }
+        container.addView(lblPos)
+
+        val posGroup = RadioGroup(this).apply {
+            orientation = RadioGroup.HORIZONTAL
+        }
+        val rbLeft = RadioButton(this).apply { text = "چپ";  id = 1001 }
+        val rbCenter = RadioButton(this).apply { text = "وسط"; id = 1002 }
+        val rbRight = RadioButton(this).apply { text = "راست"; id = 1003 }
+        posGroup.addView(rbLeft)
+        posGroup.addView(rbCenter)
+        posGroup.addView(rbRight)
+        when (current.position) {
+            "left" -> rbLeft.isChecked = true
+            "right" -> rbRight.isChecked = true
+            else -> rbCenter.isChecked = true
+        }
+        container.addView(posGroup)
+
+        // ─── تنظیم دقیق X ───
+        val lblX = TextView(this).apply {
+            text = "↔  تنظیم دقیق افقی (dp): ${current.offsetX}"
+            textSize = 13f
+            setTextColor(Color.parseColor("#7a8ea5"))
+            setPadding(0, 16, 0, 4)
+        }
+        container.addView(lblX)
+
+        val seekX = SeekBar(this).apply {
+            max = 600
+            progress = current.offsetX + 300  // -300..+300 → 0..600
+        }
+        seekX.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                lblX.text = "↔  تنظیم دقیق افقی (dp): ${p - 300}"
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+        container.addView(seekX)
+
+        // ─── سایز متن ───
+        val lblSize = TextView(this).apply {
+            text = "🔤 اندازه متن (sp): ${current.textSizeSp.toInt()}"
+            textSize = 13f
+            setTextColor(Color.parseColor("#7a8ea5"))
+            setPadding(0, 24, 0, 4)
+        }
+        container.addView(lblSize)
+
+        val seekSize = SeekBar(this).apply {
+            max = 30  // 12..42
+            progress = (current.textSizeSp.toInt() - 12)
+        }
+        seekSize.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                lblSize.text = "🔤 اندازه متن (sp): ${p + 12}"
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+        container.addView(seekSize)
+
+        // ─── نمایش حرف اول ───
+        val swPrefix = Switch(this).apply {
+            text = "🔠 نمایش حرف اول نماد (D/C/G/A)"
+            textSize = 13f
+            setPadding(0, 24, 0, 0)
+            isChecked = current.showPrefix
+        }
+        container.addView(swPrefix)
+
+        // ─── پس‌زمینه ───
+        val swBg = Switch(this).apply {
+            text = "🎨 پس‌زمینه‌ی تیره"
+            textSize = 13f
+            setPadding(0, 12, 0, 0)
+            isChecked = current.showBackground
+        }
+        container.addView(swBg)
+
+        scroll.addView(container)
+
+        AlertDialog.Builder(this)
+            .setTitle("⚙ تنظیمات Overlay")
+            .setView(scroll)
+            .setPositiveButton("ذخیره") { _, _ ->
+                val newPos = when {
+                    rbLeft.isChecked -> "left"
+                    rbRight.isChecked -> "right"
+                    else -> "center"
+                }
+                val newSettings = OverlaySettings(
+                    position = newPos,
+                    offsetX = seekX.progress - 300,
+                    textSizeSp = (seekSize.progress + 12).toFloat(),
+                    showPrefix = swPrefix.isChecked,
+                    showBackground = swBg.isChecked,
+                )
+                OverlayPrefs.save(this, newSettings)
+
+                // اگر Overlay فعال است، مجدد راه‌اندازی کن تا تنظیمات اعمال شوند
+                if (OverlayService.isRunning) {
+                    stopService(Intent(this, OverlayService::class.java))
+                    android.os.Handler(android.os.Looper.getMainLooper())
+                        .postDelayed({
+                            startService(Intent(this, OverlayService::class.java))
+                        }, 300)
+                }
+                statusText.text = "تنظیمات Overlay ذخیره شد ✓"
+                statusText.setTextColor(Color.parseColor("#22c55e"))
+            }
+            .setNegativeButton("لغو", null)
+            .show()
     }
 
     private fun openWeb() {

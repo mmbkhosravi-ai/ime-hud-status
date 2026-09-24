@@ -91,6 +91,13 @@ class NotifService : Service() {
                         if (sb.isEmpty()) sb.append("🔴 بازار بسته")
                     }
 
+                    // ── ۳.۵ افزودن زمان بروزرسانی ──
+                    val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+                        .format(java.util.Date())
+                    val statusLine = if (lastMarketOpen) "🟢 بازار باز" else "🔴 بازار بسته"
+                    sb.append("━━━━━━━━━━━━━━━━━━\n")
+                    sb.append("⏰ ").append(now).append("  ·  ").append(statusLine)
+
                     val fullText = sb.toString().trimEnd()
 
                     // ── ۴. انتخاب آیکون بر اساس شرط ──

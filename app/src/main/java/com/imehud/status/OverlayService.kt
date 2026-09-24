@@ -28,11 +28,12 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: TextView? = null
-    private val scope = CoroutineScope(Dispatchers.Main)
-    private var job: Job? = null
     private var rotationItems: List<PriceData> = emptyList()
     private var marketItems: List<MarketItem> = emptyList()
     private var currentIndex = 0
+    private var lastSettings: OverlaySettings? = null
+    private val scope = CoroutineScope(Dispatchers.Main)
+    private var job: Job? = null
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -48,24 +49,14 @@ class OverlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        createOverlay()
+        val s = OverlayPrefs.load(this)
+        lastSettings = s
+        if (overlayView == null) createOverlay(s)
         startUpdateLoop()
         return START_STICKY
     }
 
-    private fun createOverlay() {
-        if (overlayView != null) return
-
-        overlayView = TextView(this).apply {
-            setTextColor(Color.WHITE)
-            textSize = 26f
-            typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
-            setShadowLayer(4f, 0f, 0f, Color.BLACK)
-            text = "---"
-            setPadding(28, 4, 28, 4)
-            setBackgroundColor(Color.parseColor("#CC000000"))
-        }
-
+    private fun buildParams(s: OverlaySettings): WindowManager.LayoutParams {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         else
@@ -75,28 +66,64 @@ class OverlayService : Service() {
         val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
             WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
 
-        val params = WindowManager.LayoutParams(
+        val gravity = when (s.position) {
+            "left" -> Gravity.TOP or Gravity.START
+            "right" -> Gravity.TOP or Gravity.END
+            else -> Gravity.TOP or Gravity.CENTER_HORIZONTAL
+        }
+
+        val density = resources.displayMetrics.density
+        val offsetPx = (s.offsetX * density).toInt()
+
+        return WindowManager.LayoutParams(
             WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
-            type,
-            flags,
-            PixelFormat.TRANSLUCENT
+            type, flags, PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
-            // x را بعد از ساعت تنظیم می‌کنیم — برای Samsung One UI ساعت چپ است
-            x = 0
-            y = 0
+            this.gravity = gravity
+            this.x = offsetPx
+            this.y = 0
+        }
+    }
+
+    private fun createOverlay(s: OverlaySettings) {
+        overlayView = TextView(this).apply {
+            textSize = s.textSizeSp
+            typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
+            setShadowLayer(6f, 0f, 0f, Color.BLACK)
+            setTextColor(Color.WHITE)
+            text = "..."
+            setPadding(24, 2, 24, 2)
+            if (s.showBackground) {
+                setBackgroundColor(Color.parseColor("#AA000000"))
+            } else {
+                setBackgroundColor(Color.TRANSPARENT)
+            }
         }
 
         try {
-            windowManager.addView(overlayView, params)
-            Log.d(TAG, "Overlay added at x=260 y=0")
+            windowManager.addView(overlayView, buildParams(s))
+            Log.d(TAG, "overlay added: pos=${s.position} size=${s.textSizeSp}")
         } catch (e: Exception) {
             Log.e(TAG, "addView failed", e)
             stopSelf()
+        }
+    }
+
+    private fun applySettings(s: OverlaySettings) {
+        val v = overlayView ?: return
+        v.textSize = s.textSizeSp
+        if (s.showBackground) {
+            v.setBackgroundColor(Color.parseColor("#AA000000"))
+        } else {
+            v.setBackgroundColor(Color.TRANSPARENT)
+        }
+        try {
+            windowManager.updateViewLayout(v, buildParams(s))
+        } catch (e: Exception) {
+            Log.e(TAG, "updateViewLayout err", e)
         }
     }
 
@@ -105,7 +132,12 @@ class OverlayService : Service() {
         job = scope.launch {
             while (true) {
                 try {
-                    updateOverlay()
+                    val s = OverlayPrefs.load(this@OverlayService)
+                    if (s != lastSettings) {
+                        applySettings(s)
+                        lastSettings = s
+                    }
+                    updateOverlay(s)
                 } catch (e: Exception) {
                     Log.e(TAG, "loop err", e)
                 }
@@ -114,23 +146,28 @@ class OverlayService : Service() {
         }
     }
 
-    private suspend fun updateOverlay() {
-        // ── ۱. تشخیص وضعیت بازار ──
+    private suspend fun updateOverlay(s: OverlaySettings) {
         val rot = try { PriceFetcher.fetchRotation() } catch (e: Exception) { null }
         val marketIsOpen = rot?.marketOpen ?: false
         if (rot != null && rot.items.isNotEmpty()) rotationItems = rot.items
 
-        // ── ۲. اگر بازار بسته، market بگیر ──
         val mkt: List<MarketItem> = if (!marketIsOpen) {
             try { PriceFetcher.fetchMarket() ?: emptyList() } catch (e: Exception) { emptyList() }
         } else emptyList()
         if (mkt.isNotEmpty()) marketItems = mkt
 
-        // ── ۳. ساخت لیست بر اساس شرط ──
-        val source: List<Triple<String, Double, Double?>> = if (marketIsOpen) {
-            rotationItems.map { Triple(it.alias, it.price, it.changePct) }
+        data class Item(val alias: String, val key: String, val price: Double, val pct: Double?)
+
+        // ★ اولویت: نمادهای پورتفو → بعد market
+        val source: List<Item> = if (rotationItems.isNotEmpty() && marketIsOpen) {
+            // بازار باز → فقط پورتفو
+            rotationItems.map { Item(it.alias, "", it.price, it.changePct) }
+        } else if (marketItems.isNotEmpty()) {
+            // بازار بسته یا پورتفو خالی → market
+            marketItems.map { Item(it.alias, it.key, it.price, it.changePct) }
         } else {
-            marketItems.map { Triple(it.alias, it.price, it.changePct) }
+            // fallback: پورتفو (اگر market هم خالی بود)
+            rotationItems.map { Item(it.alias, "", it.price, it.changePct) }
         }
 
         if (source.isEmpty()) {
@@ -141,23 +178,40 @@ class OverlayService : Service() {
             return
         }
 
-        // ── ۴. انتخاب آیتم و رنگ ──
         val idx = currentIndex % source.size
-        val (alias, price, pct) = source[idx]
+        val cur = source[idx]
         currentIndex++
 
-        val digits = firstDigits(price, 3)
+        val digits = firstDigits(cur.price, 3)
+        val prefix = if (s.showPrefix) getPrefix(cur.alias, cur.key) else ""
+        val display = if (prefix.isNotEmpty()) "$prefix $digits" else digits
+
         val color = when {
-            pct == null -> Color.rgb(230, 180, 40)
-            pct >= 0 -> Color.rgb(60, 220, 120)
+            cur.pct == null -> Color.rgb(230, 180, 40)
+            cur.pct >= 0 -> Color.rgb(60, 220, 120)
             else -> Color.rgb(255, 80, 80)
         }
 
         overlayView?.apply {
-            text = digits
+            text = display
             setTextColor(color)
         }
-        Log.d(TAG, "overlay=$digits ($idx/${source.size}) open=$marketIsOpen alias=$alias")
+        Log.d(TAG, "overlay=$display ($idx/${source.size}) open=$marketIsOpen")
+    }
+
+    // ★ حروف اختصاصی
+    private fun getPrefix(alias: String, key: String): String {
+        return when {
+            key == "usd" -> "D"
+            key == "coin" -> "C"
+            key == "gold" -> "G"
+            alias.contains("عیار") -> "A"
+            alias.contains("دلار") -> "D"
+            alias.contains("سکه") -> "C"
+            alias.contains("طلا") -> "G"
+            alias.contains("انس") -> "O"
+            else -> ""
+        }
     }
 
     private fun firstDigits(v: Double, n: Int): String {

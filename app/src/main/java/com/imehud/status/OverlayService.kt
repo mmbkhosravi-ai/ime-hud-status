@@ -58,12 +58,12 @@ class OverlayService : Service() {
 
         overlayView = TextView(this).apply {
             setTextColor(Color.WHITE)
-            textSize = 16f
+            textSize = 26f
             typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
             setShadowLayer(4f, 0f, 0f, Color.BLACK)
             text = "---"
-            setPadding(20, 2, 20, 2)
-            setBackgroundColor(Color.parseColor("#80000000"))
+            setPadding(28, 4, 28, 4)
+            setBackgroundColor(Color.parseColor("#CC000000"))
         }
 
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
@@ -87,7 +87,7 @@ class OverlayService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             // x را بعد از ساعت تنظیم می‌کنیم — برای Samsung One UI ساعت چپ است
-            x = 260
+            x = 0
             y = 0
         }
 
@@ -115,32 +115,41 @@ class OverlayService : Service() {
     }
 
     private suspend fun updateOverlay() {
+        // ── ۱. تشخیص وضعیت بازار ──
         val rot = try { PriceFetcher.fetchRotation() } catch (e: Exception) { null }
+        val marketIsOpen = rot?.marketOpen ?: false
         if (rot != null && rot.items.isNotEmpty()) rotationItems = rot.items
 
-        val mkt = try { PriceFetcher.fetchMarket() } catch (e: Exception) { null }
-        if (mkt != null && mkt.isNotEmpty()) marketItems = mkt
+        // ── ۲. اگر بازار بسته، market بگیر ──
+        val mkt: List<MarketItem> = if (!marketIsOpen) {
+            try { PriceFetcher.fetchMarket() ?: emptyList() } catch (e: Exception) { emptyList() }
+        } else emptyList()
+        if (mkt.isNotEmpty()) marketItems = mkt
 
-        data class Item(val alias: String, val price: Double, val pct: Double?)
-
-        val all = buildList {
-            rotationItems.forEach { add(Item(it.alias, it.price, it.changePct)) }
-            marketItems.forEach { add(Item(it.alias, it.price, it.changePct)) }
+        // ── ۳. ساخت لیست بر اساس شرط ──
+        val source: List<Triple<String, Double, Double?>> = if (marketIsOpen) {
+            rotationItems.map { Triple(it.alias, it.price, it.changePct) }
+        } else {
+            marketItems.map { Triple(it.alias, it.price, it.changePct) }
         }
 
-        if (all.isEmpty()) {
-            overlayView?.text = "---"
+        if (source.isEmpty()) {
+            overlayView?.apply {
+                text = "---"
+                setTextColor(Color.GRAY)
+            }
             return
         }
 
-        val idx = currentIndex % all.size
-        val cur = all[idx]
+        // ── ۴. انتخاب آیتم و رنگ ──
+        val idx = currentIndex % source.size
+        val (alias, price, pct) = source[idx]
         currentIndex++
 
-        val digits = firstDigits(cur.price, 3)
+        val digits = firstDigits(price, 3)
         val color = when {
-            cur.pct == null -> Color.rgb(230, 180, 40)
-            cur.pct >= 0 -> Color.rgb(60, 220, 120)
+            pct == null -> Color.rgb(230, 180, 40)
+            pct >= 0 -> Color.rgb(60, 220, 120)
             else -> Color.rgb(255, 80, 80)
         }
 
@@ -148,7 +157,7 @@ class OverlayService : Service() {
             text = digits
             setTextColor(color)
         }
-        Log.d(TAG, "overlay=$digits ($idx/${all.size})")
+        Log.d(TAG, "overlay=$digits ($idx/${source.size}) open=$marketIsOpen alias=$alias")
     }
 
     private fun firstDigits(v: Double, n: Int): String {

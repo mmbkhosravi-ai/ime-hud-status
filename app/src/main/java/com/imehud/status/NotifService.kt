@@ -56,24 +56,22 @@ class NotifService : Service() {
     private fun startLoop() {
         job?.cancel()
         job = scope.launch {
-            // اول یک بار لیست نمادها را بگیر
-            refreshRotation()
-
             while (true) {
                 try {
-                    // ★ هر بار داده‌ها را کامل بگیر
+                    // ── ۱. تشخیص وضعیت بازار ──
                     refreshRotation()
 
-                    // ── endpoint market برای دلار/طلا/سکه ──
-                    val marketList = try {
-                        PriceFetcher.fetchMarket() ?: emptyList()
-                    } catch (e: Exception) { emptyList() }
+                    // ── ۲. اگر بازار بسته، market بگیر ──
+                    val marketList = if (!lastMarketOpen) {
+                        try {
+                            PriceFetcher.fetchMarket() ?: emptyList()
+                        } catch (e: Exception) { emptyList() }
+                    } else emptyList()
 
-                    // ── ساخت نوتیفیکیشن جامع ──
+                    // ── ۳. ساخت متن بر اساس شرط ──
                     val sb = StringBuilder()
-
-                    // ۱. اول نمادهای پورتفو (بازار باز)
-                    if (rotationItems.isNotEmpty()) {
+                    if (lastMarketOpen) {
+                        // بازار باز → فقط پورتفو
                         for (ri in rotationItems) {
                             sb.append("📊 ").append(ri.alias).append(": ")
                             sb.append(formatPrice(ri.price))
@@ -81,39 +79,33 @@ class NotifService : Service() {
                             ri.bubble?.let { sb.append("  حباب ").append(String.format("%+.2f%%", it)) }
                             sb.append("\n")
                         }
-                    }
-
-                    // ۲. دلار/طلا/سکه
-                    for (mi in marketList) {
-                        sb.append("💵 ").append(mi.alias).append(": ")
-                        sb.append(formatPrice(mi.price))
-                        mi.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
-                        sb.append("\n")
-                    }
-
-                    if (sb.isEmpty()) {
-                        sb.append("⚠️ داده‌ای در دسترس نیست")
+                        if (sb.isEmpty()) sb.append("⚠️ نمادی در پورتفو نیست")
+                    } else {
+                        // بازار بسته → فقط دلار/طلا/سکه
+                        for (mi in marketList) {
+                            sb.append("💵 ").append(mi.alias).append(": ")
+                            sb.append(formatPrice(mi.price))
+                            mi.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+                            sb.append("\n")
+                        }
+                        if (sb.isEmpty()) sb.append("🔴 بازار بسته")
                     }
 
                     val fullText = sb.toString().trimEnd()
 
-                    // ── آیکون کوچک چرخشی ──
-                    val source = when {
-                        rotationItems.isNotEmpty() -> rotationItems
-                        else -> emptyList()
-                    }
+                    // ── ۴. انتخاب آیکون بر اساس شرط ──
                     val digits: String
                     val color: Int
                     val iconPrice: Double
 
-                    if (source.isNotEmpty()) {
-                        val cur = source[currentIndex % source.size]
+                    if (lastMarketOpen && rotationItems.isNotEmpty()) {
+                        val cur = rotationItems[currentIndex % rotationItems.size]
                         digits = first3(cur.price)
                         color = if ((cur.changePct ?: 0.0) >= 0)
                             Color.rgb(34, 197, 94) else Color.rgb(220, 38, 38)
                         iconPrice = cur.price
                         currentIndex++
-                    } else if (marketList.isNotEmpty()) {
+                    } else if (!lastMarketOpen && marketList.isNotEmpty()) {
                         val cur = marketList[marketIndex % marketList.size]
                         digits = first3(cur.price)
                         color = when {
@@ -129,10 +121,9 @@ class NotifService : Service() {
                         iconPrice = 0.0
                     }
 
-                    // ── نمایش ──
+                    // ── ۵. نمایش ──
                     showNotif(digits, fullText, color, iconPrice)
-                    lastMarketOpen = rotationItems.isNotEmpty()
-                    Log.d(TAG, "[multi] icon=$digits, lines=${fullText.lines().size}")
+                    Log.d(TAG, "[multi] icon=$digits, open=$lastMarketOpen, lines=" + fullText.lines().size)
                     consecutiveFailures = 0
                     delay(INTERVAL_MS)
                 } catch (e: Exception) {

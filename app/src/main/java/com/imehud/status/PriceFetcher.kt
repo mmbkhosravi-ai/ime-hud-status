@@ -148,13 +148,32 @@ object PriceFetcher {
     }
 
     /**
+     * ★ وضعیت بازار — endpoint سبک (~5ms).
+     */
+    suspend fun fetchMarketStatus(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("http://127.0.0.1:5056/api/market/status")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext false
+                val body = resp.body?.string() ?: return@withContext false
+                val j = JSONObject(body)
+                return@withContext j.optBoolean("open", false)
+            }
+        } catch (e: Exception) {
+            return@withContext false
+        }
+    }
+
+    /**
      * ★ منبع اصلی برای Overlay و Notif — لیست نمادهای فعال
      * که کاربر در Web UI تعیین کرده (show=true).
      */
     suspend fun fetchNotifSymbols(): List<NotifSymbol>? = withContext(Dispatchers.IO) {
         try {
             val req = Request.Builder()
-                .url("http://127.0.0.1:5056/api/notif/symbols")
+                .url("http://127.0.0.1:5056/api/notif/symbols/cached")
                 .build()
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext null

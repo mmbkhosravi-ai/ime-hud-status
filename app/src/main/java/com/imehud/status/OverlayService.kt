@@ -28,7 +28,7 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: TextView? = null
-    private var currentIndex = 0
+    private var currentIndex = 0  // index مشترک برای چرخش روی symbols
     private var lastSettings: OverlaySettings? = null
     private val scope = CoroutineScope(Dispatchers.Main)
     private var job: Job? = null

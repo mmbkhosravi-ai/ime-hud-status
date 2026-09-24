@@ -29,7 +29,8 @@ class NotifService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.Default)
     private var job: Job? = null
-    private var iconIndex = 0
+    private var portfolioIndex = 0
+    private var marketIndex = 0
     private var consecutiveFailures = 0
 
     override fun onCreate() {
@@ -62,9 +63,8 @@ class NotifService : Service() {
     }
 
     private suspend fun updateNotif(): Long {
-        // ── ۱. وضعیت بازار ──
-        val rot = try { PriceFetcher.fetchRotation() } catch (e: Exception) { null }
-        val marketOpen = rot?.marketOpen ?: false
+        // ── ۱. وضعیت بازار (endpoint سبک) ──
+        val marketOpen = try { PriceFetcher.fetchMarketStatus() } catch (e: Exception) { false }
 
         // ── ۲. نمادهای کاربر (از Web UI) ──
         val symbols = try { PriceFetcher.fetchNotifSymbols() } catch (e: Exception) { null } ?: emptyList()
@@ -114,14 +114,14 @@ class NotifService : Service() {
         var iconPrice = 0.0
 
         if (marketOpen && symbols.isNotEmpty()) {
-            val s = symbols[iconIndex % symbols.size]
-            iconIndex++
+            val s = symbols[portfolioIndex % symbols.size]
+            portfolioIndex++
             digits = first3(s.price)
             color = colorFor(s.changePct)
             iconPrice = s.price
         } else if (!marketOpen && marketList.isNotEmpty()) {
-            val m = marketList[iconIndex % marketList.size]
-            iconIndex++
+            val m = marketList[marketIndex % marketList.size]
+            marketIndex++
             digits = first3(m.price)
             color = colorFor(m.changePct)
             iconPrice = m.price

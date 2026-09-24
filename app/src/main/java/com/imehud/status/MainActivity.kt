@@ -161,6 +161,11 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, 24
             )
         }
+        val space4 = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 12
+            )
+        }
 
         root.addView(title)
         root.addView(subtitle)
@@ -169,7 +174,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(startBtn)
         root.addView(space2)
         root.addView(stopBtn)
-        root.addView(space2)
+        root.addView(space4)
         root.addView(overlayBtn)
         root.addView(space3)
         root.addView(webBtn)

@@ -63,43 +63,25 @@ class NotifService : Service() {
     }
 
     private suspend fun updateNotif(): Long {
-        // ── ۱. وضعیت بازار (endpoint سبک) ──
+        // ── ۱. فقط symbols (تک منبع) ──
         val marketOpen = try { PriceFetcher.fetchMarketStatus() } catch (e: Exception) { false }
-
-        // ── ۲. نمادهای کاربر (از Web UI) ──
         val symbols = try { PriceFetcher.fetchNotifSymbols() } catch (e: Exception) { null } ?: emptyList()
 
-        // ── ۳. اگر بازار بسته: دلار/طلا/سکه ──
-        val marketList: List<MarketItem> = if (!marketOpen) {
-            try { PriceFetcher.fetchMarket() ?: emptyList() } catch (e: Exception) { emptyList() }
-        } else emptyList()
-
-        // ── ۴. ساخت متن نوتیف ──
+        // ── ۲. ساخت متن ──
         val sb = StringBuilder()
-
-        if (marketOpen && symbols.isNotEmpty()) {
-            // بازار باز → نمادهای کاربر
-            for (s in symbols) {
-                sb.append("📊 ").append(s.key).append(" ").append(s.alias).append(": ")
-                sb.append(formatPrice(s.price))
-                s.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
-                s.bubble?.let { sb.append("  B ").append(String.format("%+.2f%%", it)) }
-                sb.append("\n")
-            }
-        } else if (!marketOpen && marketList.isNotEmpty()) {
-            // بازار بسته → دلار/طلا/سکه
-            for (m in marketList) {
-                sb.append("💵 ").append(m.key).append(" ").append(m.alias).append(": ")
-                sb.append(formatPrice(m.price))
-                m.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+        if (symbols.isNotEmpty()) {
+            for (sym in symbols) {
+                sb.append("📊 ").append(sym.key).append(" ").append(sym.alias).append(": ")
+                sb.append(formatPrice(sym.price))
+                sym.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+                sym.bubble?.let { sb.append("  B ").append(String.format("%+.2f%%", it)) }
                 sb.append("\n")
             }
         } else {
-            sb.append(if (marketOpen) "⚠️ نمادی در لیست نیست" else "🔴 بازار بسته")
-            sb.append("\n")
+            sb.append("⚠️ نمادی در لیست نیست\n")
         }
 
-        // ── ۵. زمان + وضعیت ──
+        // ── ۳. زمان + وضعیت ──
         val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
             .format(java.util.Date())
         val statusLine = if (marketOpen) "🟢 بازار باز" else "🔴 بازار بسته"
@@ -108,7 +90,7 @@ class NotifService : Service() {
 
         val fullText = sb.toString().trimEnd()
 
-        // ── ۶. انتخاب آیکون کوچک (چرخش) — از تنظیمات کاربر ──
+        // ── ۴. آیکون کوچک چرخشی ──
         val settings = OverlayPrefs.load(this)
         val usePrefix = settings.showPrefix
 
@@ -117,27 +99,20 @@ class NotifService : Service() {
         var iconPrice = 0.0
         var iconPrefix = ""
 
-        if (marketOpen && symbols.isNotEmpty()) {
-            val s = symbols[portfolioIndex % symbols.size]
+        if (symbols.isNotEmpty()) {
+            val sym = symbols[portfolioIndex % symbols.size]
             portfolioIndex++
-            digits = NotifBuilder.pick2(s.price)
-            color = colorFor(s.changePct)
-            iconPrice = s.price
-            iconPrefix = if (usePrefix) s.key else ""
-        } else if (!marketOpen && marketList.isNotEmpty()) {
-            val m = marketList[marketIndex % marketList.size]
-            marketIndex++
-            digits = NotifBuilder.pick2(m.price)
-            color = colorFor(m.changePct)
-            iconPrice = m.price
-            iconPrefix = if (usePrefix) m.key else ""
+            digits = NotifBuilder.pick2(sym.price)
+            color = colorFor(sym.changePct)
+            iconPrice = sym.price
+            iconPrefix = if (usePrefix) sym.key else ""
         }
 
-        // ── ۷. نمایش ──
+        // ── ۵. نمایش ──
         showNotif(fullText, color, iconPrice, iconPrefix)
-        Log.d(TAG, "[notif] icon=$digits prefix=$iconPrefix, open=$marketOpen, sym=${symbols.size}, mkt=${marketList.size}")
+        Log.d(TAG, "[notif] icon=$iconPrefix $digits, sym=${symbols.size}, open=$marketOpen")
 
-        // ── ۸. زمان چرخش از تنظیمات کاربر ──
+        // ── ۶. زمان چرخش ──
         val sec = settings.rotateSeconds.coerceIn(2, 60)
         return sec * 1000L
     }

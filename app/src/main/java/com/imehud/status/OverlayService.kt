@@ -163,8 +163,8 @@ class OverlayService : Service() {
         val cur = symbols[idx]
         currentIndex++
 
-        // ★ Overlay: قیمت کامل (بدون کاما برای فونت درشت‌تر)
-        val digits = cur.price.toLong().toString()
+        // ★ Overlay: قیمت کامل با کاما (مثل 240,010,000)
+        val digits = String.format("%,d", cur.price.toLong())
         val prefix = if (s.showPrefix) cur.key else ""
         val baseText = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 

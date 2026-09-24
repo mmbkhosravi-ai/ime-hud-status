@@ -41,8 +41,6 @@ class NotifService : Service() {
     private var marketIndex = 0
 
     // ★ state بازار بسته (دلار/طلا/سکه)
-    private var marketItems: List<MarketItem> = emptyList()
-    private var marketIndex = 0
 
     override fun onCreate() {
         super.onCreate()
@@ -171,23 +169,6 @@ class NotifService : Service() {
         sb.append("\n")
         sb.append(if (d.marketOpen) "🟢 بازار باز" else "🔴 بازار بسته")
         sb.append("  ·  ").append(d.alias)
-        return sb.toString()
-    }
-
-    private fun buildMarketContent(d: MarketItem): String {
-        val sb = StringBuilder()
-        sb.append(formatPrice(d.price))
-        val pct = d.changePct
-        if (pct != null) {
-            sb.append("  ").append(String.format("%+.2f%%", pct))
-        } else {
-            sb.append("  (بدون مقایسه)")
-        }
-        sb.append("\n")
-        sb.append("💵 ").append(d.alias)
-        if (d.prev != null) {
-            sb.append("  ·  دیروز ").append(formatPrice(d.prev))
-        }
         return sb.toString()
     }
 

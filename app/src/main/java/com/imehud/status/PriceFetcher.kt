@@ -36,13 +36,6 @@ data class MarketItem(
     val changePct: Double?
 )
 
-data class MarketItem(
-    val key: String,
-    val alias: String,
-    val price: Double,
-    val prev: Double?,
-    val changePct: Double?
-)
 
 object PriceFetcher {
     private val client = OkHttpClient.Builder()

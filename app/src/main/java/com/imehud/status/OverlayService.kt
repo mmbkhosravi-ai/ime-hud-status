@@ -28,8 +28,6 @@ class OverlayService : Service() {
 
     private lateinit var windowManager: WindowManager
     private var overlayView: TextView? = null
-    private var rotationItems: List<PriceData> = emptyList()
-    private var marketItems: List<MarketItem> = emptyList()
     private var currentIndex = 0
     private var lastSettings: OverlaySettings? = null
     private val scope = CoroutineScope(Dispatchers.Main)
@@ -147,30 +145,10 @@ class OverlayService : Service() {
     }
 
     private suspend fun updateOverlay(s: OverlaySettings) {
-        val rot = try { PriceFetcher.fetchRotation() } catch (e: Exception) { null }
-        val marketIsOpen = rot?.marketOpen ?: false
-        if (rot != null && rot.items.isNotEmpty()) rotationItems = rot.items
+        // ★ از منبع واحد: /api/notif/symbols
+        val symbols = try { PriceFetcher.fetchNotifSymbols() } catch (e: Exception) { null }
 
-        val mkt: List<MarketItem> = if (!marketIsOpen) {
-            try { PriceFetcher.fetchMarket() ?: emptyList() } catch (e: Exception) { emptyList() }
-        } else emptyList()
-        if (mkt.isNotEmpty()) marketItems = mkt
-
-        data class Item(val alias: String, val key: String, val price: Double, val pct: Double?)
-
-        // ★ اولویت: نمادهای پورتفو → بعد market
-        val source: List<Item> = if (rotationItems.isNotEmpty() && marketIsOpen) {
-            // بازار باز → فقط پورتفو
-            rotationItems.map { Item(it.alias, "", it.price, it.changePct) }
-        } else if (marketItems.isNotEmpty()) {
-            // بازار بسته یا پورتفو خالی → market
-            marketItems.map { Item(it.alias, it.key, it.price, it.changePct) }
-        } else {
-            // fallback: پورتفو (اگر market هم خالی بود)
-            rotationItems.map { Item(it.alias, "", it.price, it.changePct) }
-        }
-
-        if (source.isEmpty()) {
+        if (symbols.isNullOrEmpty()) {
             overlayView?.apply {
                 text = "---"
                 setTextColor(Color.GRAY)
@@ -178,17 +156,17 @@ class OverlayService : Service() {
             return
         }
 
-        val idx = currentIndex % source.size
-        val cur = source[idx]
+        val idx = currentIndex % symbols.size
+        val cur = symbols[idx]
         currentIndex++
 
         val digits = firstDigits(cur.price, 3)
-        val prefix = if (s.showPrefix) getPrefix(cur.alias, cur.key) else ""
+        val prefix = if (s.showPrefix) cur.key else ""
         val display = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 
         val color = when {
-            cur.pct == null -> Color.rgb(230, 180, 40)
-            cur.pct >= 0 -> Color.rgb(60, 220, 120)
+            cur.changePct == null -> Color.rgb(230, 180, 40)
+            cur.changePct >= 0 -> Color.rgb(60, 220, 120)
             else -> Color.rgb(255, 80, 80)
         }
 
@@ -196,22 +174,7 @@ class OverlayService : Service() {
             text = display
             setTextColor(color)
         }
-        Log.d(TAG, "overlay=$display ($idx/${source.size}) open=$marketIsOpen")
-    }
-
-    // ★ حروف اختصاصی
-    private fun getPrefix(alias: String, key: String): String {
-        return when {
-            key == "usd" -> "D"
-            key == "coin" -> "C"
-            key == "gold" -> "G"
-            alias.contains("عیار") -> "A"
-            alias.contains("دلار") -> "D"
-            alias.contains("سکه") -> "C"
-            alias.contains("طلا") -> "G"
-            alias.contains("انس") -> "O"
-            else -> ""
-        }
+        Log.d(TAG, "overlay=$display ($idx/${symbols.size})")
     }
 
     private fun firstDigits(v: Double, n: Int): String {

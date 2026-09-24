@@ -23,24 +23,14 @@ class NotifService : Service() {
         const val TAG = "IMEHUD"
         const val CHANNEL_ID = "imehud-price"
         const val NOTIF_ID = 8888
-        const val INTERVAL_MS = 5000L
+        const val DEFAULT_INTERVAL_MS = 5000L
         const val RETRY_MS = 10000L
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
     private var job: Job? = null
-
-    // ★ state چرخش
-    private var rotationItems: List<PriceData> = emptyList()
-    private var currentIndex = 0
-    private var lastMarketOpen = false
+    private var iconIndex = 0
     private var consecutiveFailures = 0
-
-    // ★ state بازار بسته (دلار/طلا/سکه)
-    private var marketItems: List<MarketItem> = emptyList()
-    private var marketIndex = 0
-
-    // ★ state بازار بسته (دلار/طلا/سکه)
 
     override fun onCreate() {
         super.onCreate()
@@ -48,7 +38,7 @@ class NotifService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIF_ID, buildNotif("---", "در حال اتصال...", Color.GRAY))
+        startForeground(NOTIF_ID, buildNotif("در حال اتصال...", Color.GRAY))
         startLoop()
         return START_STICKY
     }
@@ -57,152 +47,103 @@ class NotifService : Service() {
         job?.cancel()
         job = scope.launch {
             while (true) {
+                var waitMs = DEFAULT_INTERVAL_MS
                 try {
-                    // ── ۱. تشخیص وضعیت بازار ──
-                    refreshRotation()
-
-                    // ── ۲. اگر بازار بسته، market بگیر ──
-                    val marketList = if (!lastMarketOpen) {
-                        try {
-                            PriceFetcher.fetchMarket() ?: emptyList()
-                        } catch (e: Exception) { emptyList() }
-                    } else emptyList()
-
-                    // ── ۳. ساخت متن بر اساس شرط ──
-                    val sb = StringBuilder()
-                    if (lastMarketOpen) {
-                        // بازار باز → فقط پورتفو
-                        for (ri in rotationItems) {
-                            sb.append("📊 ").append(ri.alias).append(": ")
-                            sb.append(formatPrice(ri.price))
-                            ri.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
-                            ri.bubble?.let { sb.append("  حباب ").append(String.format("%+.2f%%", it)) }
-                            sb.append("\n")
-                        }
-                        if (sb.isEmpty()) sb.append("⚠️ نمادی در پورتفو نیست")
-                    } else {
-                        // بازار بسته → فقط دلار/طلا/سکه
-                        for (mi in marketList) {
-                            sb.append("💵 ").append(mi.alias).append(": ")
-                            sb.append(formatPrice(mi.price))
-                            mi.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
-                            sb.append("\n")
-                        }
-                        if (sb.isEmpty()) sb.append("🔴 بازار بسته")
-                    }
-
-                    // ── ۳.۵ افزودن زمان بروزرسانی ──
-                    val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
-                        .format(java.util.Date())
-                    val statusLine = if (lastMarketOpen) "🟢 بازار باز" else "🔴 بازار بسته"
-                    sb.append("━━━━━━━━━━━━━━━━━━\n")
-                    sb.append("⏰ ").append(now).append("  ·  ").append(statusLine)
-
-                    val fullText = sb.toString().trimEnd()
-
-                    // ── ۴. انتخاب آیکون بر اساس شرط ──
-                    val digits: String
-                    val color: Int
-                    val iconPrice: Double
-
-                    if (lastMarketOpen && rotationItems.isNotEmpty()) {
-                        val cur = rotationItems[currentIndex % rotationItems.size]
-                        digits = first3(cur.price)
-                        color = if ((cur.changePct ?: 0.0) >= 0)
-                            Color.rgb(34, 197, 94) else Color.rgb(220, 38, 38)
-                        iconPrice = cur.price
-                        currentIndex++
-                    } else if (!lastMarketOpen && marketList.isNotEmpty()) {
-                        val cur = marketList[marketIndex % marketList.size]
-                        digits = first3(cur.price)
-                        color = when {
-                            cur.changePct == null -> Color.rgb(212, 160, 23)
-                            cur.changePct >= 0 -> Color.rgb(34, 197, 94)
-                            else -> Color.rgb(220, 38, 38)
-                        }
-                        iconPrice = cur.price
-                        marketIndex++
-                    } else {
-                        digits = "---"
-                        color = Color.GRAY
-                        iconPrice = 0.0
-                    }
-
-                    // ── ۵. نمایش ──
-                    showNotif(digits, fullText, color, iconPrice)
-                    Log.d(TAG, "[multi] icon=$digits, open=$lastMarketOpen, lines=" + fullText.lines().size)
+                    waitMs = updateNotif()
                     consecutiveFailures = 0
-                    delay(INTERVAL_MS)
                 } catch (e: Exception) {
                     Log.e(TAG, "loop error", e)
                     consecutiveFailures++
-                    delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
+                    waitMs = if (consecutiveFailures > 5) RETRY_MS else DEFAULT_INTERVAL_MS
                 }
+                delay(waitMs)
             }
         }
     }
 
-    private suspend fun refreshRotation() {
-        try {
-            val result = PriceFetcher.fetchRotation()
-            if (result != null && result.items.isNotEmpty()) {
-                rotationItems = result.items
-                lastMarketOpen = result.marketOpen
-                Log.d(TAG, "rotation refreshed: ${rotationItems.size} items")
-            } else {
-                Log.w(TAG, "rotation fetch failed or empty")
+    private suspend fun updateNotif(): Long {
+        // ── ۱. وضعیت بازار ──
+        val rot = try { PriceFetcher.fetchRotation() } catch (e: Exception) { null }
+        val marketOpen = rot?.marketOpen ?: false
+
+        // ── ۲. نمادهای کاربر (از Web UI) ──
+        val symbols = try { PriceFetcher.fetchNotifSymbols() } catch (e: Exception) { null } ?: emptyList()
+
+        // ── ۳. اگر بازار بسته: دلار/طلا/سکه ──
+        val marketList: List<MarketItem> = if (!marketOpen) {
+            try { PriceFetcher.fetchMarket() ?: emptyList() } catch (e: Exception) { emptyList() }
+        } else emptyList()
+
+        // ── ۴. ساخت متن نوتیف ──
+        val sb = StringBuilder()
+
+        if (marketOpen && symbols.isNotEmpty()) {
+            // بازار باز → نمادهای کاربر
+            for (s in symbols) {
+                sb.append("📊 ").append(s.key).append(" ").append(s.alias).append(": ")
+                sb.append(formatPrice(s.price))
+                s.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+                s.bubble?.let { sb.append("  حباب ").append(String.format("%+.2f%%", it)) }
+                sb.append("\n")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "refresh error", e)
-        }
-    }
-
-    private fun buildContent(d: PriceData): String {
-        val sb = StringBuilder()
-        sb.append(formatPrice(d.price))
-        d.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
-        d.bubble?.let { sb.append("  حباب ").append(String.format("%+.2f%%", it)) }
-        sb.append("\n")
-        sb.append(if (d.marketOpen) "🟢 بازار باز" else "🔴 بازار بسته")
-        sb.append("  ·  ").append(d.alias)
-        return sb.toString()
-    }
-
-    private fun buildMarketContent(d: MarketItem): String {
-        val sb = StringBuilder()
-        sb.append(formatPrice(d.price))
-        val pct = d.changePct
-        if (pct != null) {
-            sb.append("  ").append(String.format("%+.2f%%", pct))
+        } else if (!marketOpen && marketList.isNotEmpty()) {
+            // بازار بسته → دلار/طلا/سکه
+            for (m in marketList) {
+                sb.append("💵 ").append(m.key).append(" ").append(m.alias).append(": ")
+                sb.append(formatPrice(m.price))
+                m.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+                sb.append("\n")
+            }
         } else {
-            sb.append("  (بدون مقایسه)")
+            sb.append(if (marketOpen) "⚠️ نمادی در لیست نیست" else "🔴 بازار بسته")
+            sb.append("\n")
         }
-        sb.append("\n")
-        sb.append("💵 ").append(d.alias)
-        if (d.prev != null) {
-            sb.append("  ·  دیروز ").append(formatPrice(d.prev))
+
+        // ── ۵. زمان + وضعیت ──
+        val now = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.US)
+            .format(java.util.Date())
+        val statusLine = if (marketOpen) "🟢 بازار باز" else "🔴 بازار بسته"
+        sb.append("━━━━━━━━━━━━━━━━━━\n")
+        sb.append("⏰ ").append(now).append("  ·  ").append(statusLine)
+
+        val fullText = sb.toString().trimEnd()
+
+        // ── ۶. انتخاب آیکون کوچک (چرخش) ──
+        var digits = "---"
+        var color = Color.GRAY
+        var iconPrice = 0.0
+
+        if (marketOpen && symbols.isNotEmpty()) {
+            val s = symbols[iconIndex % symbols.size]
+            iconIndex++
+            digits = first3(s.price)
+            color = colorFor(s.changePct)
+            iconPrice = s.price
+        } else if (!marketOpen && marketList.isNotEmpty()) {
+            val m = marketList[iconIndex % marketList.size]
+            iconIndex++
+            digits = first3(m.price)
+            color = colorFor(m.changePct)
+            iconPrice = m.price
         }
-        return sb.toString()
+
+        // ── ۷. نمایش ──
+        showNotif(fullText, color, iconPrice)
+        Log.d(TAG, "[notif] icon=$digits, open=$marketOpen, sym=${symbols.size}, mkt=${marketList.size}")
+
+        // ── ۸. زمان چرخش از تنظیمات کاربر ──
+        val settings = OverlayPrefs.load(this)
+        val sec = settings.rotateSeconds.coerceIn(2, 60)
+        return sec * 1000L
     }
 
-    private fun buildUsdContent(d: UsdData): String {
-        val sb = StringBuilder()
-        sb.append(formatPrice(d.price))
-        val pct = d.changePct
-        if (pct != null) {
-            sb.append("  ").append(String.format("%+.2f%%", pct))
-        } else {
-            sb.append("  (بدون مقایسه)")
-        }
-        sb.append("\n")
-        sb.append("💵 دلار تهران")
-        if (d.prev != null) {
-            sb.append("  ·  دیروز ").append(formatPrice(d.prev))
-        }
-        return sb.toString()
+    private fun colorFor(pct: Double?): Int = when {
+        pct == null -> Color.rgb(212, 160, 23)
+        pct >= 0 -> Color.rgb(34, 197, 94)
+        else -> Color.rgb(220, 38, 38)
     }
 
-    private fun showNotif(digits: String, content: String, color: Int, price: Double) {
+    private fun showNotif(content: String, color: Int, price: Double) {
         val bmp = NotifBuilder.makePriceBitmap(price, color)
         val smallIcon = Icon.createWithBitmap(bmp)
 
@@ -225,7 +166,7 @@ class NotifService : Service() {
         nm.notify(NOTIF_ID, notif)
     }
 
-    private fun buildNotif(digits: String, content: String, color: Int): Notification {
+    private fun buildNotif(content: String, color: Int): Notification {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
             Notification.Builder(this, CHANNEL_ID)
         else
@@ -249,7 +190,7 @@ class NotifService : Service() {
                 "IME-HUD قیمت",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "نمایش قیمت صندوق عیار در نوار وضعیت"
+                description = "نمایش قیمت نمادها در نوار وضعیت"
                 setShowBadge(false)
                 enableVibration(false)
                 setSound(null, null)

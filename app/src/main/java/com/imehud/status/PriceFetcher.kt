@@ -36,6 +36,15 @@ data class MarketItem(
     val changePct: Double?
 )
 
+data class NotifSymbol(
+    val key: String,        // A / D / C / G / O
+    val alias: String,      // نام نمایشی
+    val insCode: String,    // کد نماد
+    val price: Double,
+    val changePct: Double?,
+    val bubble: Double?
+)
+
 
 object PriceFetcher {
     private val client = OkHttpClient.Builder()
@@ -128,6 +137,45 @@ object PriceFetcher {
                                 o.getDouble("prev") else null,
                             changePct = if (o.has("change_pct") && !o.isNull("change_pct"))
                                 o.getDouble("change_pct") else null
+                        )
+                    )
+                }
+                return@withContext list
+            }
+        } catch (e: Exception) {
+            return@withContext null
+        }
+    }
+
+    /**
+     * ★ منبع اصلی برای Overlay و Notif — لیست نمادهای فعال
+     * که کاربر در Web UI تعیین کرده (show=true).
+     */
+    suspend fun fetchNotifSymbols(): List<NotifSymbol>? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("http://127.0.0.1:5056/api/notif/symbols")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val body = resp.body?.string() ?: return@withContext null
+                val j = JSONObject(body)
+                val arr = j.optJSONArray("items") ?: JSONArray()
+                val list = ArrayList<NotifSymbol>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val price = o.optDouble("price", 0.0)
+                    if (price <= 0.0) continue
+                    list.add(
+                        NotifSymbol(
+                            key = o.optString("key", "?"),
+                            alias = o.optString("alias", "?"),
+                            insCode = o.optString("ins_code", ""),
+                            price = price,
+                            changePct = if (o.has("change_pct") && !o.isNull("change_pct"))
+                                o.getDouble("change_pct") else null,
+                            bubble = if (o.has("bubble") && !o.isNull("bubble"))
+                                o.getDouble("bubble") else null
                         )
                     )
                 }

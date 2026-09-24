@@ -163,7 +163,8 @@ class OverlayService : Service() {
         val cur = symbols[idx]
         currentIndex++
 
-        val digits = NotifBuilder.pick2(cur.price)
+        // ★ Overlay: قیمت کامل (بدون کاما برای فونت درشت‌تر)
+        val digits = cur.price.toLong().toString()
         val prefix = if (s.showPrefix) cur.key else ""
         val baseText = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 

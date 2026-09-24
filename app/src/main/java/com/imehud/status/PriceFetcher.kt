@@ -28,6 +28,22 @@ data class UsdData(
     val alias: String
 )
 
+data class MarketItem(
+    val key: String,
+    val alias: String,
+    val price: Double,
+    val prev: Double?,
+    val changePct: Double?
+)
+
+data class MarketItem(
+    val key: String,
+    val alias: String,
+    val price: Double,
+    val prev: Double?,
+    val changePct: Double?
+)
+
 object PriceFetcher {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
@@ -89,6 +105,40 @@ object PriceFetcher {
                         j.getDouble("change_pct") else null,
                     alias = j.optString("alias", "دلار")
                 )
+            }
+        } catch (e: Exception) {
+            return@withContext null
+        }
+    }
+
+    suspend fun fetchMarket(): List<MarketItem>? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("http://127.0.0.1:5056/api/notif/market")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val body = resp.body?.string() ?: return@withContext null
+                val j = JSONObject(body)
+                val arr = j.optJSONArray("items") ?: JSONArray()
+                val list = ArrayList<MarketItem>()
+                for (i in 0 until arr.length()) {
+                    val o = arr.getJSONObject(i)
+                    val price = o.optDouble("price", 0.0)
+                    if (price <= 0.0) continue
+                    list.add(
+                        MarketItem(
+                            key = o.optString("key", ""),
+                            alias = o.optString("alias", "?"),
+                            price = price,
+                            prev = if (o.has("prev") && !o.isNull("prev"))
+                                o.getDouble("prev") else null,
+                            changePct = if (o.has("change_pct") && !o.isNull("change_pct"))
+                                o.getDouble("change_pct") else null
+                        )
+                    )
+                }
+                return@withContext list
             }
         } catch (e: Exception) {
             return@withContext null

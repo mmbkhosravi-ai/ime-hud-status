@@ -36,6 +36,14 @@ class NotifService : Service() {
     private var lastMarketOpen = false
     private var consecutiveFailures = 0
 
+    // ★ state بازار بسته (دلار/طلا/سکه)
+    private var marketItems: List<MarketItem> = emptyList()
+    private var marketIndex = 0
+
+    // ★ state بازار بسته (دلار/طلا/سکه)
+    private var marketItems: List<MarketItem> = emptyList()
+    private var marketIndex = 0
+
     override fun onCreate() {
         super.onCreate()
         createChannel()
@@ -55,26 +63,38 @@ class NotifService : Service() {
 
             while (true) {
                 try {
-                    // ★ اگر بازار بسته است → دلار نشان بده
+                    // ★ بازار بسته → چرخش دلار/طلا/سکه
                     if (!lastMarketOpen) {
-                        val usd = PriceFetcher.fetchUsd()
-                        if (usd != null) {
-                            val digits = first3(usd.price)
-                            val pct = usd.changePct
-                            val color = when {
-                                pct == null -> Color.rgb(212, 160, 23)  // طلایی
-                                pct >= 0 -> Color.rgb(34, 197, 94)      // سبز
-                                else -> Color.rgb(220, 38, 38)          // قرمز
+                        // اگر لیست خالی است، یک بار بگیر
+                        if (marketItems.isEmpty() || marketIndex >= marketItems.size) {
+                            val items = PriceFetcher.fetchMarket()
+                            if (items != null && items.isNotEmpty()) {
+                                marketItems = items
+                                marketIndex = 0
+                                Log.d(TAG, "market list refreshed: ${items.size} items")
                             }
-                            val content = buildUsdContent(usd)
-                            showNotif(digits, content, color, usd.price)
-                            Log.d(TAG, "[USD] $digits | $content")
-                            consecutiveFailures = 0
-                            delay(INTERVAL_MS)
+                        }
+
+                        if (marketItems.isEmpty()) {
+                            showNotif("---", "🔴 بازار بسته", Color.GRAY, 0.0)
+                            consecutiveFailures++
+                            delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
                             continue
                         }
-                        // اگر دلار هم نبود → پیام بسته
-                        showNotif("---", "🔴 بازار بسته", Color.GRAY, 0.0)
+
+                        val item = marketItems[marketIndex]
+                        val digits = first3(item.price)
+                        val pct = item.changePct
+                        val color = when {
+                            pct == null -> Color.rgb(212, 160, 23)
+                            pct >= 0 -> Color.rgb(34, 197, 94)
+                            else -> Color.rgb(220, 38, 38)
+                        }
+                        val content = buildMarketContent(item)
+                        showNotif(digits, content, color, item.price)
+                        Log.d(TAG, "[CLOSED ${marketIndex}/${marketItems.size}] ${item.alias} $digits")
+                        consecutiveFailures = 0
+                        marketIndex++
                         delay(INTERVAL_MS)
                         continue
                     }
@@ -151,6 +171,40 @@ class NotifService : Service() {
         sb.append("\n")
         sb.append(if (d.marketOpen) "🟢 بازار باز" else "🔴 بازار بسته")
         sb.append("  ·  ").append(d.alias)
+        return sb.toString()
+    }
+
+    private fun buildMarketContent(d: MarketItem): String {
+        val sb = StringBuilder()
+        sb.append(formatPrice(d.price))
+        val pct = d.changePct
+        if (pct != null) {
+            sb.append("  ").append(String.format("%+.2f%%", pct))
+        } else {
+            sb.append("  (بدون مقایسه)")
+        }
+        sb.append("\n")
+        sb.append("💵 ").append(d.alias)
+        if (d.prev != null) {
+            sb.append("  ·  دیروز ").append(formatPrice(d.prev))
+        }
+        return sb.toString()
+    }
+
+    private fun buildMarketContent(d: MarketItem): String {
+        val sb = StringBuilder()
+        sb.append(formatPrice(d.price))
+        val pct = d.changePct
+        if (pct != null) {
+            sb.append("  ").append(String.format("%+.2f%%", pct))
+        } else {
+            sb.append("  (بدون مقایسه)")
+        }
+        sb.append("\n")
+        sb.append("💵 ").append(d.alias)
+        if (d.prev != null) {
+            sb.append("  ·  دیروز ").append(formatPrice(d.prev))
+        }
         return sb.toString()
     }
 

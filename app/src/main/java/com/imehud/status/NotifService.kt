@@ -55,15 +55,52 @@ class NotifService : Service() {
 
             while (true) {
                 try {
-                    // اگر لیست خالی است یا از آخر رسیدیم → دوباره بگیر
+                    // ★ اگر بازار بسته است → دلار نشان بده
+                    if (!lastMarketOpen) {
+                        val usd = PriceFetcher.fetchUsd()
+                        if (usd != null) {
+                            val digits = first3(usd.price)
+                            val pct = usd.changePct
+                            val color = when {
+                                pct == null -> Color.rgb(212, 160, 23)  // طلایی
+                                pct >= 0 -> Color.rgb(34, 197, 94)      // سبز
+                                else -> Color.rgb(220, 38, 38)          // قرمز
+                            }
+                            val content = buildUsdContent(usd)
+                            showNotif(digits, content, color, usd.price)
+                            Log.d(TAG, "[USD] $digits | $content")
+                            consecutiveFailures = 0
+                            delay(INTERVAL_MS)
+                            continue
+                        }
+                        // اگر دلار هم نبود → پیام بسته
+                        showNotif("---", "🔴 بازار بسته", Color.GRAY, 0.0)
+                        delay(INTERVAL_MS)
+                        continue
+                    }
+
+                    // ─── بازار باز → چرخش پورتفو ───
                     if (rotationItems.isEmpty() || currentIndex >= rotationItems.size) {
                         refreshRotation()
                         currentIndex = 0
                     }
 
                     if (rotationItems.isEmpty()) {
-                        // هیچ نمادی نداریم → نمایش خطا
-                        showNotif("---", "⚠️ نمادی در پورتفو نیست", Color.GRAY, 0.0)
+                        // ★ هیچ نمادی نداریم → دلار نشان بده
+                        val usd = PriceFetcher.fetchUsd()
+                        if (usd != null) {
+                            val digits = first3(usd.price)
+                            val pct = usd.changePct
+                            val color = when {
+                                pct == null -> Color.rgb(212, 160, 23)
+                                pct >= 0 -> Color.rgb(34, 197, 94)
+                                else -> Color.rgb(220, 38, 38)
+                            }
+                            showNotif(digits, buildUsdContent(usd), color, usd.price)
+                            Log.d(TAG, "[USD-no-rotation] $digits")
+                        } else {
+                            showNotif("---", "⚠️ داده‌ای در دسترس نیست", Color.GRAY, 0.0)
+                        }
                         consecutiveFailures++
                         delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
                         continue
@@ -114,6 +151,23 @@ class NotifService : Service() {
         sb.append("\n")
         sb.append(if (d.marketOpen) "🟢 بازار باز" else "🔴 بازار بسته")
         sb.append("  ·  ").append(d.alias)
+        return sb.toString()
+    }
+
+    private fun buildUsdContent(d: UsdData): String {
+        val sb = StringBuilder()
+        sb.append(formatPrice(d.price))
+        val pct = d.changePct
+        if (pct != null) {
+            sb.append("  ").append(String.format("%+.2f%%", pct))
+        } else {
+            sb.append("  (بدون مقایسه)")
+        }
+        sb.append("\n")
+        sb.append("💵 دلار تهران")
+        if (d.prev != null) {
+            sb.append("  ·  دیروز ").append(formatPrice(d.prev))
+        }
         return sb.toString()
     }
 

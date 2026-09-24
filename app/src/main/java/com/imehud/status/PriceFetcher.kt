@@ -21,6 +21,13 @@ data class RotationResult(
     val marketOpen: Boolean
 )
 
+data class UsdData(
+    val price: Double,
+    val prev: Double?,
+    val changePct: Double?,
+    val alias: String
+)
+
 object PriceFetcher {
     private val client = OkHttpClient.Builder()
         .connectTimeout(3, TimeUnit.SECONDS)
@@ -55,6 +62,32 @@ object PriceFetcher {
                 return@withContext RotationResult(
                     items = items,
                     marketOpen = j.optBoolean("market_open", false)
+                )
+            }
+        } catch (e: Exception) {
+            return@withContext null
+        }
+    }
+
+    suspend fun fetchUsd(): UsdData? = withContext(Dispatchers.IO) {
+        try {
+            val req = Request.Builder()
+                .url("http://127.0.0.1:5056/api/notif/usd")
+                .build()
+            client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext null
+                val body = resp.body?.string() ?: return@withContext null
+                val j = JSONObject(body)
+                if (j.has("error") && !j.isNull("error")) return@withContext null
+                val price = j.optDouble("price", 0.0)
+                if (price <= 0.0) return@withContext null
+                return@withContext UsdData(
+                    price = price,
+                    prev = if (j.has("prev") && !j.isNull("prev"))
+                        j.getDouble("prev") else null,
+                    changePct = if (j.has("change_pct") && !j.isNull("change_pct"))
+                        j.getDouble("change_pct") else null,
+                    alias = j.optString("alias", "دلار")
                 )
             }
         } catch (e: Exception) {

@@ -30,6 +30,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var startBtn: Button
     private lateinit var stopBtn: Button
     private lateinit var webBtn: Button
+    private lateinit var overlayBtn: Button
 
     private val scope = CoroutineScope(Dispatchers.Main)
     private var uiJob: Job? = null
@@ -132,6 +133,14 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { stopMyService() }
         }
 
+        overlayBtn = Button(this).apply {
+            text = "🔴  نمایش عدد روی استاتوس بار (Overlay)"
+            textSize = 13f
+            setBackgroundColor(Color.parseColor("#d4a017"))
+            setTextColor(Color.BLACK)
+            setOnClickListener { toggleOverlay() }
+        }
+
         webBtn = Button(this).apply {
             text = "🌐  باز کردن رابط وب (کارت‌ها)"
             textSize = 14f
@@ -158,6 +167,8 @@ class MainActivity : AppCompatActivity() {
         root.addView(startBtn)
         root.addView(space2)
         root.addView(stopBtn)
+        root.addView(space2)
+        root.addView(overlayBtn)
         root.addView(space3)
         root.addView(webBtn)
 
@@ -165,6 +176,38 @@ class MainActivity : AppCompatActivity() {
 
         requestNotifPermission()
         startUiRefresh()
+    }
+
+    private fun toggleOverlay() {
+        if (OverlayService.isRunning) {
+            stopService(Intent(this, OverlayService::class.java))
+            overlayBtn.text = "🔴  نمایش عدد روی استاتوس بار (Overlay)"
+            statusText.text = "Overlay متوقف شد"
+            statusText.setTextColor(Color.parseColor("#7a8ea5"))
+            return
+        }
+
+        if (!Settings.canDrawOverlays(this)) {
+            // درخواست مجوز
+            try {
+                val i = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivity(i)
+                marketText.text = "پس از دادن مجوز، دوباره دکمه را بزنید"
+                marketText.setTextColor(Color.parseColor("#d4a017"))
+            } catch (e: Exception) {
+                marketText.text = "خطا در باز کردن تنظیمات مجوز"
+            }
+            return
+        }
+
+        // شروع سرویس Overlay
+        startService(Intent(this, OverlayService::class.java))
+        overlayBtn.text = "■  توقف Overlay"
+        statusText.text = "Overlay فعال ✓ — عدد روی استاتوس بار"
+        statusText.setTextColor(Color.parseColor("#22c55e"))
     }
 
     private fun openWeb() {

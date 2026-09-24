@@ -10,18 +10,17 @@ import android.graphics.Typeface
 object NotifBuilder {
 
     /**
-     * ساخت Bitmap از ۳ رقم اول قیمت — حداکثر بزرگ و خوانا.
-     *
-     * بهینه‌سازی‌های نهایی:
-     * - Canvas 256px
-     * - getTextBounds (به‌جای fontMetrics) → ۱۵-۲۵٪ بزرگ‌تر
-     * - ۳ رقم کامل
-     * - Stroke ۷٪ (تعادل ضخامت و خوانایی)
+     * ساخت Bitmap از ۳ رقم اول قیمت (+ prefix اختیاری).
      */
-    fun makePriceBitmap(price: Double, color: Int = Color.WHITE): Bitmap {
+    fun makePriceBitmap(
+        price: Double,
+        color: Int = Color.WHITE,
+        prefix: String = ""
+    ): Bitmap {
         val digits = firstDigits(price, 3)
-        val size = 256
+        val text = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 
+        val size = 256
         val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
         canvas.drawColor(Color.TRANSPARENT)
@@ -29,17 +28,15 @@ object NotifBuilder {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
             typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
-            textAlign = Paint.Align.LEFT  // ★ LEFT برای محاسبه دقیق
+            textAlign = Paint.Align.LEFT
             isFakeBoldText = true
             style = Paint.Style.FILL_AND_STROKE
         }
 
-        // ─── محاسبه با getTextBounds ───
         val bounds = Rect()
         paint.textSize = 100f
-        paint.getTextBounds(digits, 0, digits.length, bounds)
+        paint.getTextBounds(text, 0, text.length, bounds)
 
-        // اندازه‌ی مورد نیاز برای پر کردن ۱۰۰٪
         val targetW = size.toFloat() * 1.0f
         val targetH = size.toFloat() * 1.0f
 
@@ -48,19 +45,15 @@ object NotifBuilder {
         val scale = minOf(scaleW, scaleH)
 
         paint.textSize = 100f * scale
-
-        // Stroke متناسب
         paint.strokeWidth = paint.textSize * 0.07f
 
-        // محاسبه مجدد bounds با اندازه نهایی (با احتساب stroke)
         val finalBounds = Rect()
-        paint.getTextBounds(digits, 0, digits.length, finalBounds)
+        paint.getTextBounds(text, 0, text.length, finalBounds)
 
-        // محاسبه موقعیت برای مرکز دقیق
         val drawX = (size - finalBounds.width()) / 2f - finalBounds.left
         val drawY = (size - finalBounds.height()) / 2f - finalBounds.top
 
-        canvas.drawText(digits, drawX, drawY, paint)
+        canvas.drawText(text, drawX, drawY, paint)
 
         return bmp
     }

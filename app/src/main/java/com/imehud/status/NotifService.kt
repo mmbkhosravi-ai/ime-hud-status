@@ -108,10 +108,14 @@ class NotifService : Service() {
 
         val fullText = sb.toString().trimEnd()
 
-        // ── ۶. انتخاب آیکون کوچک (چرخش) ──
+        // ── ۶. انتخاب آیکون کوچک (چرخش) — از تنظیمات کاربر ──
+        val settings = OverlayPrefs.load(this)
+        val usePrefix = settings.showPrefix
+
         var digits = "---"
         var color = Color.GRAY
         var iconPrice = 0.0
+        var iconPrefix = ""
 
         if (marketOpen && symbols.isNotEmpty()) {
             val s = symbols[portfolioIndex % symbols.size]
@@ -119,20 +123,21 @@ class NotifService : Service() {
             digits = first3(s.price)
             color = colorFor(s.changePct)
             iconPrice = s.price
+            iconPrefix = if (usePrefix) s.key else ""
         } else if (!marketOpen && marketList.isNotEmpty()) {
             val m = marketList[marketIndex % marketList.size]
             marketIndex++
             digits = first3(m.price)
             color = colorFor(m.changePct)
             iconPrice = m.price
+            iconPrefix = if (usePrefix) m.key else ""
         }
 
         // ── ۷. نمایش ──
-        showNotif(fullText, color, iconPrice)
-        Log.d(TAG, "[notif] icon=$digits, open=$marketOpen, sym=${symbols.size}, mkt=${marketList.size}")
+        showNotif(fullText, color, iconPrice, iconPrefix)
+        Log.d(TAG, "[notif] icon=$digits prefix=$iconPrefix, open=$marketOpen, sym=${symbols.size}, mkt=${marketList.size}")
 
         // ── ۸. زمان چرخش از تنظیمات کاربر ──
-        val settings = OverlayPrefs.load(this)
         val sec = settings.rotateSeconds.coerceIn(2, 60)
         return sec * 1000L
     }
@@ -143,8 +148,8 @@ class NotifService : Service() {
         else -> Color.rgb(220, 38, 38)
     }
 
-    private fun showNotif(content: String, color: Int, price: Double) {
-        val bmp = NotifBuilder.makePriceBitmap(price, color)
+    private fun showNotif(content: String, color: Int, price: Double, prefix: String = "") {
+        val bmp = NotifBuilder.makePriceBitmap(price, color, prefix)
         val smallIcon = Icon.createWithBitmap(bmp)
 
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)

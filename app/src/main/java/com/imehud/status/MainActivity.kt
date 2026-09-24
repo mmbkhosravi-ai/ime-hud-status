@@ -316,6 +316,28 @@ class MainActivity : AppCompatActivity() {
         })
         container.addView(seekSize)
 
+        // ─── مدت نمایش هر نماد ───
+        val lblRotate = TextView(this).apply {
+            text = "⏱  مدت نمایش هر نماد (ثانیه): ${current.rotateSeconds}"
+            textSize = 13f
+            setTextColor(Color.parseColor("#7a8ea5"))
+            setPadding(0, 24, 0, 4)
+        }
+        container.addView(lblRotate)
+
+        val seekRotate = SeekBar(this).apply {
+            max = 58  // 2..60
+            progress = (current.rotateSeconds - 2).coerceIn(0, 58)
+        }
+        seekRotate.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(sb: SeekBar?, p: Int, fromUser: Boolean) {
+                lblRotate.text = "⏱  مدت نمایش هر نماد (ثانیه): ${p + 2}"
+            }
+            override fun onStartTrackingTouch(sb: SeekBar?) {}
+            override fun onStopTrackingTouch(sb: SeekBar?) {}
+        })
+        container.addView(seekRotate)
+
         // ─── نمایش حرف اول ───
         val swPrefix = Switch(this).apply {
             text = "🔠 نمایش حرف اول نماد (D/C/G/A)"
@@ -351,6 +373,7 @@ class MainActivity : AppCompatActivity() {
                     textSizeSp = (seekSize.progress + 12).toFloat(),
                     showPrefix = swPrefix.isChecked,
                     showBackground = swBg.isChecked,
+                    rotateSeconds = seekRotate.progress + 2,
                 )
                 OverlayPrefs.save(this, newSettings)
 

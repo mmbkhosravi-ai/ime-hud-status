@@ -8,6 +8,7 @@ data class OverlaySettings(
     val textSizeSp: Float = 22f,        // 12..42
     val showPrefix: Boolean = true,
     val showBackground: Boolean = true,
+    val rotateSeconds: Int = 5,         // 2..60 — مدت نمایش هر نماد
 )
 
 object OverlayPrefs {
@@ -17,6 +18,7 @@ object OverlayPrefs {
     private const val KEY_SIZE = "text_size"
     private const val KEY_PREFIX = "show_prefix"
     private const val KEY_BG = "show_bg"
+    private const val KEY_ROTATE = "rotate_sec"
 
     fun load(ctx: Context): OverlaySettings {
         val p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -26,6 +28,7 @@ object OverlayPrefs {
             textSizeSp = p.getFloat(KEY_SIZE, 22f),
             showPrefix = p.getBoolean(KEY_PREFIX, true),
             showBackground = p.getBoolean(KEY_BG, true),
+            rotateSeconds = p.getInt(KEY_ROTATE, 5),
         )
     }
 
@@ -36,6 +39,7 @@ object OverlayPrefs {
             putFloat(KEY_SIZE, s.textSizeSp)
             putBoolean(KEY_PREFIX, s.showPrefix)
             putBoolean(KEY_BG, s.showBackground)
+            putInt(KEY_ROTATE, s.rotateSeconds)
             apply()
         }
     }

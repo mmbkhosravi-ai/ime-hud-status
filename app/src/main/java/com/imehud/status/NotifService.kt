@@ -120,14 +120,14 @@ class NotifService : Service() {
         if (marketOpen && symbols.isNotEmpty()) {
             val s = symbols[portfolioIndex % symbols.size]
             portfolioIndex++
-            digits = first3(s.price)
+            digits = NotifBuilder.pick2(s.price)
             color = colorFor(s.changePct)
             iconPrice = s.price
             iconPrefix = if (usePrefix) s.key else ""
         } else if (!marketOpen && marketList.isNotEmpty()) {
             val m = marketList[marketIndex % marketList.size]
             marketIndex++
-            digits = first3(m.price)
+            digits = NotifBuilder.pick2(m.price)
             color = colorFor(m.changePct)
             iconPrice = m.price
             iconPrefix = if (usePrefix) m.key else ""
@@ -202,12 +202,6 @@ class NotifService : Service() {
             }
             nm.createNotificationChannel(ch)
         }
-    }
-
-    private fun first3(v: Double): String {
-        if (v.isNaN() || v == 0.0) return "---"
-        val s = kotlin.math.abs(v).toLong().toString()
-        return if (s.length <= 3) s else s.substring(0, 3)
     }
 
     private fun formatPrice(v: Double): String {

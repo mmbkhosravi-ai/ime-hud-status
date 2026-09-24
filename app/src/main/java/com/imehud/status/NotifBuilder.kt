@@ -10,14 +10,20 @@ import android.graphics.Typeface
 object NotifBuilder {
 
     /**
-     * ساخت Bitmap از ۳ رقم اول قیمت (+ prefix اختیاری).
+     * ساخت Bitmap از ۲ رقم مهم قیمت (KITCO-Style).
+     *
+     * قانون: ارقام دوم و سوم از چپ.
+     *   234000   → 34
+     *   23954500 → 39
+     *   660000   → 60
+     *   240010000 → 40
      */
     fun makePriceBitmap(
         price: Double,
         color: Int = Color.WHITE,
         prefix: String = ""
     ): Bitmap {
-        val digits = firstDigits(price, 3)
+        val digits = pick2(price)
         val text = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 
         val size = 256
@@ -45,7 +51,7 @@ object NotifBuilder {
         val scale = minOf(scaleW, scaleH)
 
         paint.textSize = 100f * scale
-        paint.strokeWidth = paint.textSize * 0.07f
+        paint.strokeWidth = paint.textSize * 0.08f
 
         val finalBounds = Rect()
         paint.getTextBounds(text, 0, text.length, finalBounds)
@@ -58,9 +64,15 @@ object NotifBuilder {
         return bmp
     }
 
-    private fun firstDigits(v: Double, n: Int): String {
+    /**
+     * قانون KITCO: ارقام ۲ و ۳ از چپ.
+     */
+    fun pick2(v: Double): String {
         if (v.isNaN() || v == 0.0) return "--"
         val s = kotlin.math.abs(v).toLong().toString()
-        return if (s.length <= n) s else s.substring(0, n)
+        return when {
+            s.length <= 2 -> s
+            else -> s.substring(1, 3)
+        }
     }
 }

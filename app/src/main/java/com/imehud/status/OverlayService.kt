@@ -163,7 +163,7 @@ class OverlayService : Service() {
         val cur = symbols[idx]
         currentIndex++
 
-        val digits = firstDigits(cur.price, 3)
+        val digits = NotifBuilder.pick2(cur.price)
         val prefix = if (s.showPrefix) cur.key else ""
         val baseText = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 
@@ -208,12 +208,6 @@ class OverlayService : Service() {
             text = sp
         }
         Log.d(TAG, "overlay=$full ($idx/${symbols.size})")
-    }
-
-    private fun firstDigits(v: Double, n: Int): String {
-        if (v.isNaN() || v == 0.0) return "---"
-        val s = kotlin.math.abs(v).toLong().toString()
-        return if (s.length <= n) s else s.substring(0, n)
     }
 
     override fun onDestroy() {

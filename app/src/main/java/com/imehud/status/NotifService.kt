@@ -61,81 +61,79 @@ class NotifService : Service() {
 
             while (true) {
                 try {
-                    // ★ بازار بسته → چرخش دلار/طلا/سکه
-                    if (!lastMarketOpen) {
-                        // اگر لیست خالی است، یک بار بگیر
-                        if (marketItems.isEmpty() || marketIndex >= marketItems.size) {
-                            val items = PriceFetcher.fetchMarket()
-                            if (items != null && items.isNotEmpty()) {
-                                marketItems = items
-                                marketIndex = 0
-                                Log.d(TAG, "market list refreshed: ${items.size} items")
-                            }
-                        }
+                    // ★ هر بار داده‌ها را کامل بگیر
+                    refreshRotation()
 
-                        if (marketItems.isEmpty()) {
-                            showNotif("---", "🔴 بازار بسته", Color.GRAY, 0.0)
-                            consecutiveFailures++
-                            delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
-                            continue
-                        }
+                    // ── endpoint market برای دلار/طلا/سکه ──
+                    val marketList = try {
+                        PriceFetcher.fetchMarket() ?: emptyList()
+                    } catch (e: Exception) { emptyList() }
 
-                        val item = marketItems[marketIndex]
-                        val digits = first3(item.price)
-                        val pct = item.changePct
-                        val color = when {
-                            pct == null -> Color.rgb(212, 160, 23)
-                            pct >= 0 -> Color.rgb(34, 197, 94)
+                    // ── ساخت نوتیفیکیشن جامع ──
+                    val sb = StringBuilder()
+
+                    // ۱. اول نمادهای پورتفو (بازار باز)
+                    if (rotationItems.isNotEmpty()) {
+                        for (ri in rotationItems) {
+                            sb.append("📊 ").append(ri.alias).append(": ")
+                            sb.append(formatPrice(ri.price))
+                            ri.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+                            ri.bubble?.let { sb.append("  حباب ").append(String.format("%+.2f%%", it)) }
+                            sb.append("\n")
+                        }
+                    }
+
+                    // ۲. دلار/طلا/سکه
+                    for (mi in marketList) {
+                        sb.append("💵 ").append(mi.alias).append(": ")
+                        sb.append(formatPrice(mi.price))
+                        mi.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
+                        sb.append("\n")
+                    }
+
+                    if (sb.isEmpty()) {
+                        sb.append("⚠️ داده‌ای در دسترس نیست")
+                    }
+
+                    val fullText = sb.toString().trimEnd()
+
+                    // ── آیکون کوچک چرخشی ──
+                    val source = when {
+                        rotationItems.isNotEmpty() -> rotationItems
+                        else -> emptyList()
+                    }
+                    val digits: String
+                    val color: Int
+                    val iconPrice: Double
+
+                    if (source.isNotEmpty()) {
+                        val cur = source[currentIndex % source.size]
+                        digits = first3(cur.price)
+                        color = if ((cur.changePct ?: 0.0) >= 0)
+                            Color.rgb(34, 197, 94) else Color.rgb(220, 38, 38)
+                        iconPrice = cur.price
+                        currentIndex++
+                    } else if (marketList.isNotEmpty()) {
+                        val cur = marketList[marketIndex % marketList.size]
+                        digits = first3(cur.price)
+                        color = when {
+                            cur.changePct == null -> Color.rgb(212, 160, 23)
+                            cur.changePct >= 0 -> Color.rgb(34, 197, 94)
                             else -> Color.rgb(220, 38, 38)
                         }
-                        val content = buildMarketContent(item)
-                        showNotif(digits, content, color, item.price)
-                        Log.d(TAG, "[CLOSED ${marketIndex}/${marketItems.size}] ${item.alias} $digits")
-                        consecutiveFailures = 0
+                        iconPrice = cur.price
                         marketIndex++
-                        delay(INTERVAL_MS)
-                        continue
+                    } else {
+                        digits = "---"
+                        color = Color.GRAY
+                        iconPrice = 0.0
                     }
 
-                    // ─── بازار باز → چرخش پورتفو ───
-                    if (rotationItems.isEmpty() || currentIndex >= rotationItems.size) {
-                        refreshRotation()
-                        currentIndex = 0
-                    }
-
-                    if (rotationItems.isEmpty()) {
-                        // ★ هیچ نمادی نداریم → دلار نشان بده
-                        val usd = PriceFetcher.fetchUsd()
-                        if (usd != null) {
-                            val digits = first3(usd.price)
-                            val pct = usd.changePct
-                            val color = when {
-                                pct == null -> Color.rgb(212, 160, 23)
-                                pct >= 0 -> Color.rgb(34, 197, 94)
-                                else -> Color.rgb(220, 38, 38)
-                            }
-                            showNotif(digits, buildUsdContent(usd), color, usd.price)
-                            Log.d(TAG, "[USD-no-rotation] $digits")
-                        } else {
-                            showNotif("---", "⚠️ داده‌ای در دسترس نیست", Color.GRAY, 0.0)
-                        }
-                        consecutiveFailures++
-                        delay(if (consecutiveFailures > 5) RETRY_MS else INTERVAL_MS)
-                        continue
-                    }
-
-                    val data = rotationItems[currentIndex]
-                    val digits = first3(data.price)
-                    val color = if ((data.changePct ?: 0.0) >= 0)
-                        Color.rgb(34, 197, 94) else Color.rgb(220, 38, 38)
-
-                    val content = buildContent(data)
-                    showNotif(digits, content, color, data.price)
-                    Log.d(TAG, "[$currentIndex/${rotationItems.size}] $digits | $content")
-
+                    // ── نمایش ──
+                    showNotif(digits, fullText, color, iconPrice)
+                    lastMarketOpen = rotationItems.isNotEmpty()
+                    Log.d(TAG, "[multi] icon=$digits, lines=${fullText.lines().size}")
                     consecutiveFailures = 0
-                    currentIndex++
-
                     delay(INTERVAL_MS)
                 } catch (e: Exception) {
                     Log.e(TAG, "loop error", e)

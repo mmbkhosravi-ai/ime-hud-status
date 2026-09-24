@@ -28,7 +28,7 @@ object NotifBuilder {
 
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = color
-            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            typeface = Typeface.create("sans-serif-condensed", Typeface.BOLD)
             textAlign = Paint.Align.LEFT  // ★ LEFT برای محاسبه دقیق
             isFakeBoldText = true
             style = Paint.Style.FILL_AND_STROKE

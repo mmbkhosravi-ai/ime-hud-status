@@ -83,7 +83,7 @@ class NotifService : Service() {
                 sb.append("📊 ").append(s.key).append(" ").append(s.alias).append(": ")
                 sb.append(formatPrice(s.price))
                 s.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
-                s.bubble?.let { sb.append("  حباب ").append(String.format("%+.2f%%", it)) }
+                s.bubble?.let { sb.append("  B ").append(String.format("%+.2f%%", it)) }
                 sb.append("\n")
             }
         } else if (!marketOpen && marketList.isNotEmpty()) {

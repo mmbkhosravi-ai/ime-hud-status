@@ -165,7 +165,7 @@ class OverlayService : Service() {
 
         val digits = firstDigits(cur.price, 3)
         val prefix = if (s.showPrefix) cur.key else ""
-        val display = if (prefix.isNotEmpty()) "$prefix $digits" else digits
+        val baseText = if (prefix.isNotEmpty()) "$prefix $digits" else digits
 
         val color = when {
             cur.changePct == null -> Color.rgb(230, 180, 40)
@@ -173,11 +173,41 @@ class OverlayService : Service() {
             else -> Color.rgb(255, 80, 80)
         }
 
-        overlayView?.apply {
-            text = display
-            setTextColor(color)
+        // ★ ساخت SpannableString: عدد با رنگ اصلی، B + درصد با فونت کوچک‌تر و رنگ طلایی
+        val full = if (cur.bubble != null) {
+            String.format("%s  B %+.2f%%", baseText, cur.bubble)
+        } else {
+            baseText
         }
-        Log.d(TAG, "overlay=$display ($idx/${symbols.size})")
+
+        val sp = android.text.SpannableString(full)
+        // رنگ پایه (کل متن) → رنگ عدد
+        sp.setSpan(
+            android.text.style.ForegroundColorSpan(color),
+            0, baseText.length,
+            android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        // بخش B + درصد → رنگ طلایی
+        if (cur.bubble != null) {
+            val bubbleStart = baseText.length
+            val bubbleEnd = full.length
+            sp.setSpan(
+                android.text.style.ForegroundColorSpan(Color.rgb(230, 180, 40)),
+                bubbleStart, bubbleEnd,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            // فونت کوچک‌تر (۷۵٪)
+            sp.setSpan(
+                android.text.style.RelativeSizeSpan(0.75f),
+                bubbleStart, bubbleEnd,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+
+        overlayView?.apply {
+            text = sp
+        }
+        Log.d(TAG, "overlay=$full ($idx/${symbols.size})")
     }
 
     private fun firstDigits(v: Double, n: Int): String {

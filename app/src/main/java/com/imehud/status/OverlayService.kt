@@ -129,6 +129,7 @@ class OverlayService : Service() {
         job?.cancel()
         job = scope.launch {
             while (true) {
+                var waitMs = INTERVAL_MS
                 try {
                     val s = OverlayPrefs.load(this@OverlayService)
                     if (s != lastSettings) {
@@ -136,10 +137,12 @@ class OverlayService : Service() {
                         lastSettings = s
                     }
                     updateOverlay(s)
+                    // ★ از تنظیمات کاربر (2..60 ثانیه)
+                    waitMs = s.rotateSeconds.coerceIn(2, 60) * 1000L
                 } catch (e: Exception) {
                     Log.e(TAG, "loop err", e)
                 }
-                delay(INTERVAL_MS)
+                delay(waitMs)
             }
         }
     }

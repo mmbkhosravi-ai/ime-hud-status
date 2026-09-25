@@ -165,6 +165,14 @@ class MainActivity : AppCompatActivity() {
             setOnClickListener { openWeb() }
         }
 
+        val notifSymbolsBtn = Button(this).apply {
+            text = "📋  مدیریت نمادهای نمایش"
+            textSize = 14f
+            setBackgroundColor(Color.parseColor("#0891b2"))
+            setTextColor(Color.WHITE)
+            setOnClickListener { openUrl("http://127.0.0.1:5056/notif-symbols") }
+        }
+
         val space2 = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 12
@@ -199,6 +207,8 @@ class MainActivity : AppCompatActivity() {
         root.addView(overlaySettingsBtn)
         root.addView(space3)
         root.addView(webBtn)
+        root.addView(space5)
+        root.addView(notifSymbolsBtn)
 
         setContentView(root)
 
@@ -393,9 +403,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openWeb() {
+        openUrl(webUrl)
+    }
+
+    private fun openUrl(url: String) {
         try {
             val i = Intent(Intent.ACTION_VIEW)
-            i.data = android.net.Uri.parse(webUrl)
+            i.data = android.net.Uri.parse(url)
             startActivity(i)
         } catch (e: Exception) {
             marketText.text = "خطا در باز کردن مرورگر"

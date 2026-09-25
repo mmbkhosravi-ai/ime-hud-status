@@ -188,6 +188,11 @@ class MainActivity : AppCompatActivity() {
                 LinearLayout.LayoutParams.MATCH_PARENT, 8
             )
         }
+        val space6 = View(this).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 8
+            )
+        }
         val space4 = View(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 12
@@ -207,7 +212,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(overlaySettingsBtn)
         root.addView(space3)
         root.addView(webBtn)
-        root.addView(space5)
+        root.addView(space6)
         root.addView(notifSymbolsBtn)
 
         setContentView(root)

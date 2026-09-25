@@ -42,7 +42,8 @@ data class NotifSymbol(
     val insCode: String,    // کد نماد
     val price: Double,
     val changePct: Double?,
-    val bubble: Double?
+    val bubble: Double?,
+    val rPct: Double?       // ★ درصد نسبت به مبنای کاربر
 )
 
 
@@ -194,7 +195,9 @@ object PriceFetcher {
                             changePct = if (o.has("change_pct") && !o.isNull("change_pct"))
                                 o.getDouble("change_pct") else null,
                             bubble = if (o.has("bubble") && !o.isNull("bubble"))
-                                o.getDouble("bubble") else null
+                                o.getDouble("bubble") else null,
+                            rPct = if (o.has("r_pct") && !o.isNull("r_pct"))
+                                o.getDouble("r_pct") else null
                         )
                     )
                 }

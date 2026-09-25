@@ -174,41 +174,85 @@ class OverlayService : Service() {
             else -> Color.rgb(255, 80, 80)
         }
 
-        // ★ ساخت SpannableString: عدد با رنگ اصلی، B + درصد با فونت کوچک‌تر و رنگ طلایی
-        val full = if (cur.bubble != null) {
-            String.format("%s  B %+.2f%%", baseText, cur.bubble)
-        } else {
-            baseText
-        }
-
+        // ★ متن: base + B + R
+        var full = baseText
         val sp = android.text.SpannableString(full)
-        // رنگ پایه (کل متن) → رنگ عدد
+
+        // رنگ عدد اصلی
         sp.setSpan(
             android.text.style.ForegroundColorSpan(color),
             0, baseText.length,
             android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
         )
-        // بخش B + درصد → رنگ طلایی
+
+        // ★ B برای حباب
         if (cur.bubble != null) {
-            val bubbleStart = baseText.length
-            val bubbleEnd = full.length
-            sp.setSpan(
+            val bText = String.format("  B %+.2f%%", cur.bubble)
+            val start = sp.length
+            val sp2 = android.text.SpannableString(full + bText)
+            sp2.setSpan(
+                android.text.style.ForegroundColorSpan(color),
+                0, baseText.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            sp2.setSpan(
                 android.text.style.ForegroundColorSpan(Color.rgb(230, 180, 40)),
-                bubbleStart, bubbleEnd,
+                start, sp2.length,
                 android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
             )
-            // فونت کوچک‌تر (۷۵٪)
-            sp.setSpan(
+            sp2.setSpan(
                 android.text.style.RelativeSizeSpan(0.75f),
-                bubbleStart, bubbleEnd,
+                start, sp2.length,
                 android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
             )
+            full = sp2.toString()
+            overlayView?.text = sp2
         }
 
-        overlayView?.apply {
-            text = sp
+        // ★ R (نسبت به مبنای کاربر)
+        if (cur.rPct != null) {
+            val rText = String.format("  R %+.2f%%", cur.rPct)
+            val current = overlayView?.text ?: baseText
+            val spR = android.text.SpannableString(current.toString() + rText)
+            val oldLen = current.length
+            // رنگ پیش‌فرض قبلی (نیاز نیست رنگ‌ها را تکرار کنیم، صرفاً اضافه)
+            spR.setSpan(
+                android.text.style.ForegroundColorSpan(color),
+                0, baseText.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            if (cur.bubble != null) {
+                val bubbleStart = baseText.length
+                val bubbleEnd = oldLen
+                spR.setSpan(
+                    android.text.style.ForegroundColorSpan(Color.rgb(230, 180, 40)),
+                    bubbleStart, bubbleEnd,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+                spR.setSpan(
+                    android.text.style.RelativeSizeSpan(0.75f),
+                    bubbleStart, bubbleEnd,
+                    android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+            // رنگ R
+            val rColor = if (cur.rPct >= 0) Color.rgb(60, 220, 120) else Color.rgb(255, 80, 80)
+            spR.setSpan(
+                android.text.style.ForegroundColorSpan(rColor),
+                oldLen, spR.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            spR.setSpan(
+                android.text.style.RelativeSizeSpan(0.75f),
+                oldLen, spR.length,
+                android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+            overlayView?.text = spR
+        } else {
+            overlayView?.text = if (cur.bubble != null) overlayView?.text else sp
         }
-        Log.d(TAG, "overlay=$full ($idx/${symbols.size})")
+
+        Log.d(TAG, "overlay=$full R=${cur.rPct} ($idx/${symbols.size})")
     }
 
     override fun onDestroy() {

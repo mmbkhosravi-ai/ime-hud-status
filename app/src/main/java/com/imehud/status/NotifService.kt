@@ -75,6 +75,7 @@ class NotifService : Service() {
                 sb.append(formatPrice(sym.price))
                 sym.changePct?.let { sb.append("  ").append(String.format("%+.2f%%", it)) }
                 sym.bubble?.let { sb.append("  B ").append(String.format("%+.2f%%", it)) }
+                sym.rPct?.let { sb.append("  R ").append(String.format("%+.2f%%", it)) }
                 sb.append("\n")
             }
         } else {

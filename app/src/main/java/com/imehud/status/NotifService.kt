@@ -25,6 +25,9 @@ class NotifService : Service() {
         const val NOTIF_ID = 8888
         const val DEFAULT_INTERVAL_MS = 5000L
         const val RETRY_MS = 10000L
+        // ★ آلارم
+        const val ALARM_CHANNEL_ID = "imehud-alarm"
+        const val ALARM_NOTIF_ID = 8889
     }
 
     private val scope = CoroutineScope(Dispatchers.Default)
@@ -33,6 +36,9 @@ class NotifService : Service() {
     private var marketIndex = 0
     private var consecutiveFailures = 0
 
+
+    // ★ uidهای فعلاً در وضعیت «آستانه رد شده»
+    private val alarmActive = mutableSetOf<String>()
     override fun onCreate() {
         super.onCreate()
         createChannel()
@@ -66,6 +72,13 @@ class NotifService : Service() {
         // ── ۱. فقط symbols (تک منبع) ──
         val marketOpen = try { PriceFetcher.fetchMarketStatus() } catch (e: Exception) { false }
         val symbols = try { PriceFetcher.fetchNotifSymbols() } catch (e: Exception) { null } ?: emptyList()
+
+        // ── ۲.۵ چک آلارم‌ها (فقط بازار باز) ──
+        if (marketOpen && symbols.isNotEmpty()) {
+            checkAlarms(symbols)
+        } else {
+            alarmActive.clear()
+        }
 
         // ── ۲. ساخت متن ──
         val sb = StringBuilder()
@@ -116,6 +129,66 @@ class NotifService : Service() {
         // ── ۶. زمان چرخش ──
         val sec = settings.rotateSeconds.coerceIn(2, 60)
         return sec * 1000L
+    }
+
+    private fun checkAlarms(symbols: List<NotifSymbol>) {
+        for (sym in symbols) {
+            if (!sym.alarmEnabled) {
+                alarmActive.remove(sym.uid)
+                continue
+            }
+            var triggered = false
+            val reasons = StringBuilder()
+
+            sym.rPct?.let { r ->
+                if (r > sym.alarmRHigh || r < sym.alarmRLow) {
+                    triggered = true
+                    reasons.append(String.format("R %+.2f%%", r))
+                }
+            }
+            sym.bubble?.let { b ->
+                if (b > sym.alarmBubbleHigh || b < sym.alarmBubbleLow) {
+                    if (triggered) reasons.append("  ·  ")
+                    triggered = true
+                    reasons.append(String.format("B %+.2f%%", b))
+                }
+            }
+
+            val key = sym.uid.ifEmpty { sym.key + ":" + sym.alias }
+            if (triggered && !alarmActive.contains(key)) {
+                alarmActive.add(key)
+                sendAlarmNotif(sym, reasons.toString())
+                Log.d(TAG, "[alarm] ${sym.alias} → ${reasons}")
+            } else if (!triggered) {
+                alarmActive.remove(key)
+            }
+        }
+    }
+
+    private fun sendAlarmNotif(sym: NotifSymbol, detail: String) {
+        try {
+            val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
+                Notification.Builder(this, ALARM_CHANNEL_ID)
+            else
+                Notification.Builder(this)
+
+            val title = "🔔 آلارم " + sym.key + " " + sym.alias
+            val body = detail + "\n" + formatPrice(sym.price) + " تومان"
+
+            val notif = builder
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setStyle(Notification.BigTextStyle().bigText(body))
+                .setAutoCancel(true)
+                .setOnlyAlertOnce(false)
+                .build()
+
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(ALARM_NOTIF_ID, notif)
+        } catch (e: Exception) {
+            Log.e(TAG, "alarm notify err", e)
+        }
     }
 
     private fun colorFor(pct: Double?): Int = when {
@@ -177,6 +250,28 @@ class NotifService : Service() {
                 setSound(null, null)
             }
             nm.createNotificationChannel(ch)
+
+            // ★ کانال آلارم (با صدا)
+            val alarmCh = NotificationChannel(
+                ALARM_CHANNEL_ID,
+                "IME-HUD آلارم",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "آلارم عبور از آستانه R% یا حباب"
+                setShowBadge(true)
+                enableVibration(true)
+                // صدای پیش‌فرض سیستم
+                setSound(
+                    android.media.RingtoneManager.getDefaultUri(
+                        android.media.RingtoneManager.TYPE_NOTIFICATION
+                    ),
+                    android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+            }
+            nm.createNotificationChannel(alarmCh)
         }
     }
 

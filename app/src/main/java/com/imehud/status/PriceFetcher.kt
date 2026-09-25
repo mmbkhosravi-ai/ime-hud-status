@@ -37,13 +37,19 @@ data class MarketItem(
 )
 
 data class NotifSymbol(
-    val key: String,        // A / D / C / G / O
-    val alias: String,      // نام نمایشی
-    val insCode: String,    // کد نماد
+    val uid: String,
+    val key: String,
+    val alias: String,
+    val insCode: String,
     val price: Double,
     val changePct: Double?,
     val bubble: Double?,
-    val rPct: Double?       // ★ درصد نسبت به مبنای کاربر
+    val rPct: Double?,
+    val alarmEnabled: Boolean,
+    val alarmRHigh: Double,
+    val alarmRLow: Double,
+    val alarmBubbleHigh: Double,
+    val alarmBubbleLow: Double
 )
 
 
@@ -188,6 +194,7 @@ object PriceFetcher {
                     if (price <= 0.0) continue
                     list.add(
                         NotifSymbol(
+                            uid = o.optString("uid", ""),
                             key = o.optString("key", "?"),
                             alias = o.optString("alias", "?"),
                             insCode = o.optString("ins_code", ""),
@@ -197,7 +204,12 @@ object PriceFetcher {
                             bubble = if (o.has("bubble") && !o.isNull("bubble"))
                                 o.getDouble("bubble") else null,
                             rPct = if (o.has("r_pct") && !o.isNull("r_pct"))
-                                o.getDouble("r_pct") else null
+                                o.getDouble("r_pct") else null,
+                            alarmEnabled = o.optBoolean("alarm_enabled", true),
+                            alarmRHigh = o.optDouble("alarm_r_high", 3.0),
+                            alarmRLow = o.optDouble("alarm_r_low", -3.0),
+                            alarmBubbleHigh = o.optDouble("alarm_bubble_high", 3.2),
+                            alarmBubbleLow = o.optDouble("alarm_bubble_low", 0.5)
                         )
                     )
                 }

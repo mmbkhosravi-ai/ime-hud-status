@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Color
 import android.graphics.drawable.Icon
 import android.os.Build
@@ -39,9 +40,47 @@ class NotifService : Service() {
 
     // ★ uidهای فعلاً در وضعیت «آستانه رد شده»
     private val alarmActive = mutableSetOf<String>()
+
+    // ★ Screen State Receiver (dynamic — برای Android 14+)
+    private var screenReceiver: ScreenStateReceiver? = null
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        registerScreenReceiver()
+    }
+
+    // ★ ثبت دینامیک Screen State Receiver
+    private fun registerScreenReceiver() {
+        try {
+            if (screenReceiver == null) {
+                screenReceiver = ScreenStateReceiver()
+                val filter = IntentFilter().apply {
+                    addAction(Intent.ACTION_SCREEN_ON)
+                    addAction(Intent.ACTION_SCREEN_OFF)
+                    addAction(Intent.ACTION_USER_PRESENT)
+                }
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                    registerReceiver(screenReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                } else {
+                    registerReceiver(screenReceiver, filter)
+                }
+                Log.d(TAG, "ScreenStateReceiver registered")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "registerScreenReceiver failed", e)
+        }
+    }
+
+    private fun unregisterScreenReceiver() {
+        try {
+            screenReceiver?.let {
+                unregisterReceiver(it)
+                screenReceiver = null
+                Log.d(TAG, "ScreenStateReceiver unregistered")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "unregisterScreenReceiver failed", e)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -281,6 +320,7 @@ class NotifService : Service() {
 
     override fun onDestroy() {
         job?.cancel()
+        unregisterScreenReceiver()
         super.onDestroy()
     }
 
